@@ -17,7 +17,8 @@
     "test:e2e": "playwright test --project=e2e",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integration": "playwright test --project=integration",
-    "test:all": "pnpm test:unit && playwright test"
+    "test:all": "pnpm test:unit && playwright test",
+    "screenshots:readme": "pnpm build && playwright test --project=screenshots"
   },
   "dependencies": {
     "@thisbeyond/solid-dnd": "^0.7.5",
@@ -50,8 +51,6 @@
     "commit-msg": "node scripts/check-commit-msg.js $1"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "biome check --write"
-    ]
+    "*.{ts,tsx}": ["biome check --write"]
   }
 }
