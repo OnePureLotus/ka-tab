@@ -1,6 +1,6 @@
-import { defineConfig } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { defineConfig } from '@playwright/test'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const extensionPath = path.resolve(__dirname, '.output/chrome-mv3')
@@ -16,9 +16,9 @@ const extensionLaunch = {
     `--load-extension=${extensionPath}`,
     '--no-sandbox',
     '--disable-dev-shm-usage',
-    // '--headless=new', // Chrome 112+ new headless mode; supports loading extensions
+    '--headless=new', // Chrome 112+ native headless; required for extension support in CI
   ],
-  headless: false,
+  headless: false, // Let Chrome manage headless via --headless=new above
 }
 
 export default defineConfig({
@@ -41,6 +41,12 @@ export default defineConfig({
       name: 'integration',
       testDir: './tests/integration',
       timeout: 60_000, // multi-step flows need more time
+    },
+    {
+      name: 'screenshots',
+      testDir: './tests/screenshots',
+      timeout: 90_000,
+      retries: 0,
     },
   ],
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],

@@ -20,7 +20,6 @@ jobs:
         chrome-version:
           - 'stable'
           - 'beta'
-          - 'canary'
 
     steps:
       - name: Checkout
@@ -56,10 +55,7 @@ jobs:
       - name: Run E2E tests
         run: pnpm test:e2e
         env:
-          # Pass the resolved Chrome binary path to Playwright
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-          # Required for headless Chrome on Linux CI
-          DISPLAY: ':99'
 
       - name: Upload Playwright report on failure
         if: failure()
