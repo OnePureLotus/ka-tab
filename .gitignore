@@ -1,0 +1,41 @@
+# WXT / build output
+.wxt/
+.output/
+dist/
+*.zip
+
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Copilot / AI agents
+.github/agents/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test output
+test-results/
+playwright-report/
+playwright-report-integration/
+
+# TypeScript
+*.tsbuildinfo

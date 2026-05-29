@@ -1,0 +1,57 @@
+{
+  "name": "ka-tab",
+  "version": "0.0.1",
+  "description": "KaTab — Kanban-style new tab page for Chrome",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "postinstall": "wxt prepare",
+    "lint": "biome lint ./src",
+    "format": "biome format --write ./src",
+    "check": "biome check --write ./src",
+    "typecheck": "tsc --noEmit",
+    "prepare": "simple-git-hooks",
+    "test:e2e": "playwright test --project=e2e",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "playwright test --project=integration",
+    "test:all": "pnpm test:unit && playwright test"
+  },
+  "dependencies": {
+    "@thisbeyond/solid-dnd": "^0.7.5",
+    "culori": "^4.0.1",
+    "dompurify": "^3.2.6",
+    "marked": "^15.0.12",
+    "motion": "^11.15.0",
+    "nanoid": "^5.1.5",
+    "solid-js": "^1.9.5",
+    "valibot": "^1.0.0",
+    "wxt": "^0.20.26"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.50.1",
+    "@types/chrome": "^0.1.42",
+    "@unocss/preset-attributify": "^66.1.0",
+    "@unocss/preset-wind": "^66.1.0",
+    "@wxt-dev/module-solid": "^1.0.0",
+    "jsdom": "^29.1.1",
+    "lint-staged": "^15.5.1",
+    "simple-git-hooks": "^2.13.0",
+    "typescript": "^5.8.3",
+    "unocss": "^66.1.0",
+    "vite-plugin-solid": "^2.11.6",
+    "vitest": "^3.1.4"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged",
+    "commit-msg": "node scripts/check-commit-msg.js $1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "biome check --write"
+    ]
+  }
+}

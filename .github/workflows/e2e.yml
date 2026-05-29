@@ -1,0 +1,85 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  e2e:
+    name: E2E – Chrome ${{ matrix.chrome-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false # run all versions even if one fails
+      matrix:
+        # Coverage from Chrome 112 (--headless=new minimum) to current stable/beta/canary.
+        # Named versions ('stable', 'beta', 'canary') are resolved at runtime by setup-chrome.
+        # Numeric versions pin specific milestones: each major release is ~4 weeks apart.
+        chrome-version:
+          - '112' # --headless=new introduced; MV3 baseline
+          - '115' # service worker stability improvements
+          - '120' # MV3 Declarative Net Request v2
+          - '124' # Storage API improvements
+          - '128' # last LTS-like stable before 2025
+          - '132' # early 2025
+          - 'stable'  # current stable (resolved at runtime)
+          - 'beta'    # upcoming stable
+          - 'canary'  # bleeding edge
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright (Chromium only, for fallback)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Chrome ${{ matrix.chrome-version }}
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: ${{ matrix.chrome-version }}
+          install-chromedriver: false
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          # Pass the resolved Chrome binary path to Playwright
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          # Required for headless Chrome on Linux CI
+          DISPLAY: ':99'
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-chrome-${{ matrix.chrome-version }}
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-chrome-${{ matrix.chrome-version }}
+          path: test-results/
+          retention-days: 7

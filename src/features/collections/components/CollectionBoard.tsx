@@ -1,0 +1,366 @@
+import type { Component } from 'solid-js'
+import { createSignal, Show, For, onMount, createMemo, createEffect } from 'solid-js'
+import {
+  DragDropProvider,
+  DragDropSensors,
+  DragOverlay,
+  SortableProvider,
+  createSortable,
+  closestCenter,
+  maybeTransformStyle,
+  type DragEvent as SolidDnDEvent,
+} from '@thisbeyond/solid-dnd'
+import type { Collection } from '../types'
+import { collectionsStore } from '../store'
+import {
+  loadCollections,
+  addCollection,
+  updateCollection,
+  removeCollection,
+  reorderCollectionsInStore,
+} from '../store'
+import {
+  createCollection,
+  renameCollection,
+  updateCollectionColor,
+  addSiteToCollection,
+} from '../service'
+import CollectionCard from './CollectionCard'
+import CreateCollectionModal from './CreateCollectionModal'
+import AddSiteDialog from './AddSiteDialog'
+import CollectionModal from './CollectionModal'
+import ChangeColorModal from './ChangeColorModal'
+import { showToast } from '@/shared/toast'
+import Skeleton from '@/shared/components/Skeleton'
+
+// ─── Sortable card wrapper ────────────────────────────────────────────────────
+
+interface SortableCardProps {
+  collection: Collection
+  onRename: (id: string, name: string) => void
+  onChangeColor: (id: string, color: string) => void
+  onDelete: (id: string) => void
+  onAddSite: (id: string) => void
+  onOpenModal: (id: string) => void
+  onOpenCollection: (id: string) => void
+  onTabDrop?: (url: string, title: string, favicon: string) => void
+}
+
+const SortableCard: Component<SortableCardProps> = (props) => {
+  const sortable = createSortable(props.collection.id)
+
+  return (
+    <div
+      ref={sortable.ref}
+      data-collection-id={props.collection.id}
+      style={{
+        ...maybeTransformStyle(sortable.transform),
+        opacity: sortable.isActiveDraggable ? 0.5 : 1,
+        transition: 'transform 150ms ease-out',
+      }}
+      {...sortable.dragActivators}
+    >
+      <CollectionCard
+        collection={props.collection}
+        onRename={props.onRename}
+        onChangeColor={props.onChangeColor}
+        onDelete={props.onDelete}
+        onAddSite={props.onAddSite}
+        onOpenModal={props.onOpenModal}
+        onOpenCollection={props.onOpenCollection}
+        {...(props.onTabDrop ? { onTabDrop: props.onTabDrop } : {})}
+      />
+    </div>
+  )
+}
+
+// ─── Main Board ───────────────────────────────────────────────────────────────
+
+interface CollectionBoardProps {
+  onOpenCollection: (id: string) => void
+  triggerCreate?: number
+  searchQuery?: string
+}
+
+const CollectionBoard: Component<CollectionBoardProps> = (props) => {
+  const [showCreate, setShowCreate] = createSignal(false)
+  const [addSiteFor, setAddSiteFor] = createSignal<string | null>(null)
+  const [colorChangeFor, setColorChangeFor] = createSignal<string | null>(null)
+  const [modalCollectionId, setModalCollectionId] = createSignal<string | null>(null)
+
+  onMount(() => {
+    loadCollections()
+  })
+
+  // Watch for external triggerCreate signal
+  createEffect(() => {
+    const trigger = props.triggerCreate
+    if (trigger && trigger > 0) setShowCreate(true)
+  })
+
+  const sortableIds = createMemo(() => collectionsStore.items.map((c) => c.id))
+
+  const filteredCollections = createMemo(() => {
+    const q = (props.searchQuery ?? '').toLowerCase().trim()
+    if (!q) return collectionsStore.items
+    return collectionsStore.items.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.sites.some((s) => s.title.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)),
+    )
+  })
+  const modalCollection = createMemo(
+    () => collectionsStore.items.find((c) => c.id === modalCollectionId()) ?? null,
+  )
+
+  async function handleCreate(name: string, color: string) {
+    const collection = createCollection(name, color)
+    await addCollection(collection)
+  }
+
+  async function handleRename(id: string, name: string) {
+    const col = collectionsStore.items.find((c) => c.id === id)
+    if (!col) return
+    await updateCollection(renameCollection(col, name))
+  }
+
+  async function handleChangeColor(id: string, _currentColor: string) {
+    setColorChangeFor(id)
+  }
+
+  async function handleColorPicked(id: string, color: string, tabGroupColor?: string) {
+    const col = collectionsStore.items.find((c) => c.id === id)
+    if (!col) return
+    await updateCollection(
+      updateCollectionColor(
+        col,
+        color,
+        tabGroupColor as Parameters<typeof updateCollectionColor>[2],
+      ),
+    )
+    setColorChangeFor(null)
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this collection?')) return
+    await removeCollection(id)
+  }
+
+  async function handleTabDrop(collectionId: string, url: string, title: string, favicon: string) {
+    const col = collectionsStore.items.find((c) => c.id === collectionId)
+    if (!col) return
+    const isDuplicate = col.sites.some((s) => s.url === url)
+    if (isDuplicate) {
+      showToast('URL already exists', {
+        type: 'warning',
+        body: `This URL is already saved in "${col.name}".`,
+      })
+      return
+    }
+    const updated = addSiteToCollection(col, { url, title, favicon })
+    await updateCollection(updated)
+  }
+
+  function handleDragStart(_event: SolidDnDEvent) {
+    // no-op: DragOverlay uses the draggable param from its render fn
+  }
+
+  async function handleDragEnd({ draggable, droppable }: SolidDnDEvent) {
+    if (!draggable || !droppable || draggable.id === droppable.id) return
+    const items = collectionsStore.items
+    const from = items.findIndex((c) => c.id === draggable.id)
+    const to = items.findIndex((c) => c.id === droppable.id)
+    if (from === -1 || to === -1) return
+    const item = items[from]
+    if (!item) return
+    const reordered = [...items]
+    reordered.splice(from, 1)
+    reordered.splice(to, 0, item)
+    await reorderCollectionsInStore(reordered)
+  }
+
+  return (
+    <div style="padding: 24px; height: 100%; overflow-y: auto; box-sizing: border-box;">
+      {/* Section header */}
+      <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap;">
+        <div style="flex: 1;">
+          <h1 style="font-size: 28px; font-weight: 700; color: var(--katab-color-text-primary); margin: 0 0 4px; line-height: 1.2;">
+            Collections
+          </h1>
+          <p style="font-size: 14px; color: var(--katab-color-text-secondary); margin: 0;">
+            Drop tabs from the left tray into project boards.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+          <span style="font-size: 13px; font-weight: 500; padding: 4px 12px; background: var(--katab-color-chip-bg); color: var(--katab-color-chip-text); border-radius: 20px;">
+            {collectionsStore.items.length} collection
+            {collectionsStore.items.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Loading skeleton */}
+      <Show when={collectionsStore.loading}>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+          <For each={[1, 2, 3]}>
+            {() => (
+              <div style="border-radius: 12px; border: 1px solid var(--katab-color-border); background: var(--katab-color-surface); padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                <Skeleton height="20px" width="60%" />
+                <Skeleton height="14px" />
+                <Skeleton height="14px" />
+                <Skeleton height="14px" width="80%" />
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+
+      {/* Empty state */}
+      <Show when={!collectionsStore.loading && collectionsStore.items.length === 0}>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--katab-color-text-secondary); text-align: center; padding: 60px 0;">
+          <div style="font-size: 48px;">📚</div>
+          <div style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
+            No collections yet
+          </div>
+          <div style="font-size: 14px; max-width: 300px;">
+            Organize your favorite sites into collections and open them as tab groups.
+          </div>
+          <button
+            onClick={() => setShowCreate(true)}
+            style="padding: 10px 24px; border: none; border-radius: 8px; background: var(--katab-color-accent); color: #fff; cursor: pointer; font-size: 14px; font-weight: 500;"
+          >
+            Create your first Collection
+          </button>
+        </div>
+      </Show>
+
+      {/* Collections grid */}
+      <Show when={!collectionsStore.loading && collectionsStore.items.length > 0}>
+        <DragDropProvider
+          collisionDetector={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <DragDropSensors>
+            <SortableProvider ids={sortableIds()}>
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+                <For each={filteredCollections()}>
+                  {(collection) => (
+                    <SortableCard
+                      collection={collection}
+                      onRename={handleRename}
+                      onChangeColor={handleChangeColor}
+                      onDelete={handleDelete}
+                      onAddSite={(id) => setAddSiteFor(id)}
+                      onOpenModal={(id) => setModalCollectionId(id)}
+                      onOpenCollection={props.onOpenCollection}
+                      onTabDrop={(url, title, favicon) =>
+                        handleTabDrop(collection.id, url, title, favicon)
+                      }
+                    />
+                  )}
+                </For>
+
+                {/* Create Collection placeholder card */}
+                <button
+                  onClick={() => setShowCreate(true)}
+                  style="border: 1px solid var(--katab-color-border); border-radius: 8px; background: var(--katab-color-surface); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; min-height: 268px; transition: border-color 150ms, box-shadow 150ms;"
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.borderColor =
+                      'var(--katab-color-accent)'
+                    ;(e.currentTarget as HTMLElement).style.boxShadow =
+                      '0 2px 8px rgba(79,70,229,0.10)'
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.borderColor =
+                      'var(--katab-color-border)'
+                    ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
+                  }}
+                >
+                  <div style="width: 56px; height: 56px; border-radius: 28px; background: var(--katab-color-chip-bg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: var(--katab-color-accent);">
+                    +
+                  </div>
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                    <span style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
+                      Create Collection
+                    </span>
+                    <span style="font-size: 14px; font-weight: 500; color: var(--katab-color-text-secondary); text-align: center;">
+                      Pick a color, then drag tabs into it.
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </SortableProvider>
+          </DragDropSensors>
+
+          <DragOverlay>
+            {(draggable) => {
+              const col = draggable
+                ? collectionsStore.items.find((c) => c.id === draggable.id)
+                : null
+              return col ? (
+                <div style="opacity: 0.85; transform: scale(1.03); pointer-events: none;">
+                  <CollectionCard
+                    collection={col}
+                    onRename={() => {}}
+                    onChangeColor={() => {}}
+                    onDelete={() => {}}
+                    onAddSite={() => {}}
+                    onOpenModal={() => {}}
+                    onOpenCollection={() => {}}
+                  />
+                </div>
+              ) : null
+            }}
+          </DragOverlay>
+        </DragDropProvider>
+
+        {/* Add Site Dialog */}
+        <Show
+          when={addSiteFor() !== null && collectionsStore.items.find((c) => c.id === addSiteFor())}
+        >
+          <AddSiteDialog
+            collection={collectionsStore.items.find((c) => c.id === addSiteFor())!}
+            onClose={() => setAddSiteFor(null)}
+          />
+        </Show>
+
+        {/* Change Color Modal */}
+        <Show
+          when={
+            colorChangeFor() !== null &&
+            collectionsStore.items.find((c) => c.id === colorChangeFor())
+          }
+        >
+          <ChangeColorModal
+            collection={collectionsStore.items.find((c) => c.id === colorChangeFor())!}
+            onClose={() => setColorChangeFor(null)}
+            onSave={(color, tabGroupColor) =>
+              handleColorPicked(colorChangeFor()!, color, tabGroupColor)
+            }
+          />
+        </Show>
+      </Show>
+
+      {/* Modals */}
+      <CreateCollectionModal
+        open={showCreate()}
+        onClose={() => setShowCreate(false)}
+        onCreate={handleCreate}
+      />
+
+      <CollectionModal
+        open={modalCollectionId() !== null}
+        collection={modalCollection()}
+        onClose={() => setModalCollectionId(null)}
+        onAddSite={(id) => {
+          setModalCollectionId(null)
+          setAddSiteFor(id)
+        }}
+        onOpenCollection={props.onOpenCollection}
+      />
+    </div>
+  )
+}
+
+export default CollectionBoard

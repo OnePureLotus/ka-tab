@@ -1,0 +1,123 @@
+/* KaTab Design Tokens */
+:root {
+  /* Colors */
+  --katab-color-accent: #4f46e5;
+  --katab-color-accent-hover: #4338ca;
+  --katab-color-surface: #ffffff;
+  --katab-color-surface-secondary: #f8fafc;
+  --katab-color-bg: #f8fafc;
+  --katab-color-border: #e5e7eb;
+  --katab-color-text-primary: #111827;
+  --katab-color-text-secondary: #6b7280;
+  --katab-color-text-muted: #9ca3af;
+  --katab-color-text-site: #374151;
+  --katab-color-chip-bg: #eef2ff;
+  --katab-color-chip-text: #4f46e5;
+  --katab-color-skeleton: #e5e7eb;
+
+  /* Spacing */
+  --katab-space-1: 4px;
+  --katab-space-2: 8px;
+  --katab-space-3: 12px;
+  --katab-space-4: 16px;
+  --katab-space-6: 24px;
+  --katab-space-8: 32px;
+
+  /* Typography */
+  --katab-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --katab-font-mono: "SF Mono", "Fira Code", monospace;
+  --katab-radius-sm: 6px;
+  --katab-radius-md: 10px;
+  --katab-radius-lg: 14px;
+
+  /* Transitions */
+  --katab-transition-fast: 150ms ease;
+  --katab-transition-normal: 250ms ease;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.theme-light) {
+    --katab-color-accent: #818cf8;
+    --katab-color-accent-hover: #6366f1;
+    --katab-color-surface: #172033;
+    --katab-color-surface-secondary: #1f2a44;
+    --katab-color-bg: #101827;
+    --katab-color-border: #2d3a55;
+    --katab-color-text-primary: #f8fafc;
+    --katab-color-text-secondary: #a7b0c2;
+    --katab-color-text-muted: #78849a;
+    --katab-color-text-site: #c8d0e0;
+    --katab-color-chip-bg: #1e2a4a;
+    --katab-color-chip-text: #818cf8;
+    --katab-color-skeleton: #2d3a55;
+  }
+}
+
+/* Explicit dark mode (overrides system) */
+html.theme-dark {
+  --katab-color-accent: #818cf8;
+  --katab-color-accent-hover: #6366f1;
+  --katab-color-surface: #172033;
+  --katab-color-surface-secondary: #1f2a44;
+  --katab-color-bg: #101827;
+  --katab-color-border: #2d3a55;
+  --katab-color-text-primary: #f8fafc;
+  --katab-color-text-secondary: #a7b0c2;
+  --katab-color-text-muted: #78849a;
+  --katab-color-text-site: #c8d0e0;
+  --katab-color-chip-bg: #1e2a4a;
+  --katab-color-chip-text: #818cf8;
+  --katab-color-skeleton: #2d3a55;
+  color-scheme: dark;
+}
+
+/* Explicit light mode (overrides system) */
+html.theme-light {
+  --katab-color-accent: #4f46e5;
+  --katab-color-accent-hover: #4338ca;
+  --katab-color-surface: #ffffff;
+  --katab-color-surface-secondary: #f8fafc;
+  --katab-color-bg: #f8fafc;
+  --katab-color-border: #e5e7eb;
+  --katab-color-text-primary: #111827;
+  --katab-color-text-secondary: #6b7280;
+  --katab-color-text-muted: #9ca3af;
+  --katab-color-text-site: #374151;
+  --katab-color-chip-bg: #eef2ff;
+  --katab-color-chip-text: #4f46e5;
+  --katab-color-skeleton: #e5e7eb;
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: var(--katab-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--katab-color-text-primary);
+  background: var(--katab-color-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
