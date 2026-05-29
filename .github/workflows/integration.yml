@@ -5,19 +5,12 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  workflow_dispatch: # allow manual trigger
+  workflow_dispatch:
 
 jobs:
   integration:
-    name: Integration – Chrome ${{ matrix.chrome-version }}
+    name: Integration Tests
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        chrome-version:
-          - 'stable'
-          - 'beta'
 
     steps:
       - name: Checkout
@@ -40,26 +33,20 @@ jobs:
       - name: Build extension
         run: pnpm build
 
-      - name: Install Playwright (Chromium only, for fallback)
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify build output
+        run: test -f .output/chrome-mv3/manifest.json || (echo "Build output missing!" && exit 1)
 
-      - name: Install Chrome ${{ matrix.chrome-version }}
-        id: setup-chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: ${{ matrix.chrome-version }}
-          install-chromedriver: false
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run integration tests
         run: pnpm test:integration
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-integration-chrome-${{ matrix.chrome-version }}
+          name: playwright-report-integration
           path: playwright-report-integration/
           retention-days: 7
 
@@ -67,6 +54,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-integration-chrome-${{ matrix.chrome-version }}
+          name: test-results-integration
           path: test-results/
           retention-days: 7
