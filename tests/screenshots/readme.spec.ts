@@ -129,7 +129,7 @@ async function launchExtensionContext(): Promise<{ context: BrowserContext; extI
     headless: true,
     executablePath: process.env.CHROME_PATH || undefined,
     viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 2,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
@@ -247,6 +247,20 @@ test.describe('README screenshots', () => {
       await page.locator('.collections-panel').screenshot({
         path: path.join(screenshotsDir, 'collections-board.png'),
       })
+      // Wait for favicons inside the card to finish loading before capturing
+      await page.waitForFunction(
+        () => {
+          const imgs = document.querySelectorAll('[data-collection-id="collection-daily"] img')
+          return (
+            imgs.length > 0 &&
+            Array.from(imgs).every(
+              (img) =>
+                (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0,
+            )
+          )
+        },
+        { timeout: 15_000 },
+      )
       await page.locator('[data-collection-id="collection-daily"]').screenshot({
         path: path.join(screenshotsDir, 'collection-card.png'),
       })
