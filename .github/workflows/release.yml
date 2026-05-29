@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Package extension
+        run: |
+          cd .output/chrome-mv3
+          zip -r ../../release.zip .
+          cd ../..
+          echo "Built release.zip ($(du -sh release.zip | cut -f1))"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: KaTab ${{ github.ref_name }}
+          body: |
+            ## KaTab ${{ github.ref_name }}
+
+            ### Installation (unpacked)
+            1. Download `release.zip` and unzip it
+            2. Open Chrome → `chrome://extensions/`
+            3. Enable **Developer mode**
+            4. Click **Load unpacked** and select the unzipped folder
+
+            ### Installation (Chrome Web Store)
+            *(Coming soon)*
+          files: release.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
