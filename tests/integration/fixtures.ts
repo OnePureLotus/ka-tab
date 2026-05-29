@@ -30,19 +30,14 @@ export const test = base.extend<IntegrationFixtures>({
   // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture signature
   extContext: [async ({}, use) => {
     const ctx = await chromium.launchPersistentContext('', {
-      // Do NOT set channel when executablePath is provided — they are mutually exclusive.
-      // When CHROME_PATH is set (CI), Playwright uses that binary directly.
-      // When unset (local), Playwright falls back to its bundled Chromium.
-      executablePath: process.env.CHROME_PATH || undefined,
-      // headless: false lets Chrome manage its own headless mode via --headless=new below.
-      // Playwright's headless: true uses old --headless which blocks extension loading.
+      // Empty string → fresh temp profile per worker; workers are fully isolated.
       headless: false,
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
         '--no-sandbox',
         '--disable-dev-shm-usage',
-        '--headless=new', // Chrome 112+ native headless; required for extension support in CI
+        '--headless=new',
       ],
     })
     await use(ctx)

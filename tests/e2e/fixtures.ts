@@ -26,14 +26,14 @@ export const test = base.extend<KaTabFixtures>({
   // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture signature
   extContext: [async ({}, use) => {
     const ctx = await chromium.launchPersistentContext('', {
-      executablePath: process.env.CHROME_PATH || undefined,
+      // Empty string → fresh temp profile per worker; workers are fully isolated.
       headless: false,
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
         '--no-sandbox',
         '--disable-dev-shm-usage',
-        '--headless=new', // Chrome 112+ native headless; required for extension support in CI
+        '--headless=new',
       ],
     })
     await use(ctx)
