@@ -243,14 +243,11 @@ test.describe('README screenshots', () => {
 
       const page = await openSeededNewTab(context, extId)
 
-      await capture(page, 'overview.png')
-      await page.locator('.collections-panel').screenshot({
-        path: path.join(screenshotsDir, 'collections-board.png'),
-      })
-      // Wait for favicons inside the card to finish loading before capturing
+      // Wait for all favicon <img> elements across every collection card to load
+      // before any screenshot is taken — this fixes blank icons in overview and board shots.
       await page.waitForFunction(
         () => {
-          const imgs = document.querySelectorAll('[data-collection-id="collection-daily"] img')
+          const imgs = document.querySelectorAll('[data-collection-id] img')
           return (
             imgs.length > 0 &&
             Array.from(imgs).every(
@@ -259,8 +256,13 @@ test.describe('README screenshots', () => {
             )
           )
         },
-        { timeout: 15_000 },
+        { timeout: 20_000 },
       )
+
+      await capture(page, 'overview.png')
+      await page.locator('.collections-panel').screenshot({
+        path: path.join(screenshotsDir, 'collections-board.png'),
+      })
       await page.locator('[data-collection-id="collection-daily"]').screenshot({
         path: path.join(screenshotsDir, 'collection-card.png'),
       })
