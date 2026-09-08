@@ -1,6 +1,3 @@
-import { createBoard } from '@/features/boards/service'
-import type { Board } from '@/features/boards/types'
-import { DEFAULT_BOARD_NAME } from '@/features/boards/types'
 import type { Collection } from '@/features/collections/types'
 import type { Settings } from '@/features/settings/types'
 import { DEFAULT_SETTINGS } from '@/features/settings/types'
@@ -9,14 +6,7 @@ import { DEFAULT_WEBDAV_CONFIG } from '@/features/sync/webdav/types'
 import type { SyncRuntimeStatus } from '@/features/sync/webdav/types'
 import { sendCommand } from '@/shared/messaging/client'
 import { MessageType } from '@/shared/messaging/types'
-import {
-  getAllBoards,
-  getAllCollections,
-  getAllNotes,
-  getSettings,
-  setBoard,
-  setSettings,
-} from '@/shared/storage/client'
+import { getAllCollections, getAllNotes, getSettings, setSettings } from '@/shared/storage/client'
 import type { Component } from 'solid-js'
 import { For, Show, createSignal, onMount } from 'solid-js'
 import { render } from 'solid-js/web'
@@ -198,63 +188,66 @@ const OptionsApp: Component = () => {
     save()
   }
 
-  async function exportData() {
-    const boards = await getAllBoards()
-    const cols = await getAllCollections()
-    const s = await getSettings()
-    const allNotes = await getAllNotes()
-    const blob = new Blob(
-      [JSON.stringify({ boards, collections: cols, notes: allNotes, settings: s }, null, 2)],
-      { type: 'application/json' },
-    )
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `katab-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+  async function exportSnapshotToFile() {
+    setSyncBusy(true)
+    setSyncMessage('')
+    try {
+      const res = await sendCommand<undefined, SyncCommandResult>({
+        type: MessageType.SYNC_EXPORT_SNAPSHOT,
+      })
+      if (!res.ok || !res.data) {
+        setSyncMessage(String(res.error ?? 'Export failed'))
+        return
+      }
+      const { json, filename } = res.data as { json: string; filename: string }
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+      setSyncMessage('Export completed')
+    } finally {
+      setSyncBusy(false)
+    }
   }
 
-  function importData() {
+  function importSnapshotFromFile() {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.json'
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file) return
+      const confirmed = window.confirm(
+        'This will replace all local boards, collections, notes, and settings with the file contents. Continue?',
+      )
+      if (!confirmed) return
+      setSyncBusy(true)
+      setSyncMessage('')
       try {
-        const text = await file.text()
-        const data = JSON.parse(text) as {
-          boards?: Board[]
-          collections?: Collection[]
-          settings?: Settings
+        const raw = await file.text()
+        const result = await sendCommand<
+          { raw: string },
+          | { ok: true; stats: { boards: number; collections: number; notes: number } }
+          | { ok: false; error: string }
+        >({
+          type: MessageType.SYNC_IMPORT_SNAPSHOT,
+          payload: { raw },
+        })
+        if (!result.ok) {
+          setSyncMessage(String(result.error ?? 'Import failed'))
+          return
         }
-        if (data.settings) {
-          await setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
-          const s = await getSettings()
-          setLocalSettings(s)
-        }
-        const { setCollection } = await import('@/shared/storage/client')
-        if (data.boards) {
-          for (const board of data.boards) await setBoard(board)
-        }
-        if (data.collections) {
-          if (!data.boards) {
-            const board = createBoard(
-              DEFAULT_BOARD_NAME,
-              data.collections.map((c) => c.id),
-            )
-            await setBoard(board)
-            for (const col of data.collections) {
-              await setCollection({ ...col, boardId: col.boardId ?? board.id })
-            }
-          } else {
-            for (const col of data.collections) await setCollection(col)
-          }
-        }
-        alert('Data imported successfully. Reload the new tab page.')
+        await refreshCounts()
+        setSyncMessage(
+          `Import completed (${result.stats.boards} boards, ${result.stats.collections} collections, ${result.stats.notes} notes)`,
+        )
       } catch (err) {
-        alert(`Import failed: ${err}`)
+        setSyncMessage(`Import failed: ${err}`)
+      } finally {
+        setSyncBusy(false)
       }
     }
     input.click()
@@ -263,7 +256,7 @@ const OptionsApp: Component = () => {
   const navItems: Array<{ id: NavSection; label: string; prefix: string }> = [
     { id: 'appearance', label: 'Appearance', prefix: 'Aa' },
     { id: 'data', label: 'Data & Backup', prefix: 'DB' },
-    { id: 'sync', label: 'WebDAV Sync', prefix: 'Wd' },
+    { id: 'sync', label: 'Sync', prefix: 'Sy' },
     { id: 'privacy', label: 'Privacy', prefix: 'Sh' },
   ]
 
@@ -528,59 +521,6 @@ const OptionsApp: Component = () => {
                   </div>
                 </Show>
               </SettingCard>
-
-              {/* Data & Backup card */}
-              <SettingCard
-                title="Data & Backup"
-                description="Export or restore Collections, Notes, and Settings as JSON."
-              >
-                <div style="display: flex; gap: 40px; margin-bottom: 4px;">
-                  <div>
-                    <div
-                      style={`font-size: 12px; font-weight: 500; color: ${T.textSecondary}; margin-bottom: 4px;`}
-                    >
-                      Collections
-                    </div>
-                    <div style={`font-size: 24px; font-weight: 700; color: ${T.textPrimary};`}>
-                      {collections().length}
-                    </div>
-                  </div>
-                  <div>
-                    <div
-                      style={`font-size: 12px; font-weight: 500; color: ${T.textSecondary}; margin-bottom: 4px;`}
-                    >
-                      Sites
-                    </div>
-                    <div style={`font-size: 24px; font-weight: 700; color: ${T.textPrimary};`}>
-                      {sitesCount()}
-                    </div>
-                  </div>
-                  <div>
-                    <div
-                      style={`font-size: 12px; font-weight: 500; color: ${T.textSecondary}; margin-bottom: 4px;`}
-                    >
-                      Notes
-                    </div>
-                    <div style={`font-size: 24px; font-weight: 700; color: ${T.textPrimary};`}>
-                      {notesCount()}
-                    </div>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                  <button
-                    onClick={exportData}
-                    style="height: 36px; padding: 0 18px; background: #059669; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                  >
-                    Export Backup
-                  </button>
-                  <button
-                    onClick={importData}
-                    style={`height: 36px; padding: 0 18px; background: ${T.surface}; color: ${T.accent}; border: 1px solid ${T.border}; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;`}
-                  >
-                    Import Backup
-                  </button>
-                </div>
-              </SettingCard>
             </div>
 
             {/* Save button */}
@@ -602,7 +542,7 @@ const OptionsApp: Component = () => {
               Data &amp; Backup
             </h1>
             <p style={`font-size: 14px; color: ${T.textSecondary}; margin: 0 0 28px;`}>
-              Export or restore Collections, Notes, and Settings as JSON.
+              Overview of your local data. Use the Sync tab to export or import JSON snapshots.
             </p>
 
             <div
@@ -641,165 +581,176 @@ const OptionsApp: Component = () => {
                   </div>
                 </div>
               </div>
-              {/* Buttons */}
-              <div style="display: flex; gap: 10px;">
-                <button
-                  onClick={exportData}
-                  style="height: 36px; padding: 0 20px; background: #059669; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                >
-                  Export Backup
-                </button>
-                <button
-                  onClick={importData}
-                  style={`height: 36px; padding: 0 20px; background: ${T.surface}; color: ${T.accent}; border: 1px solid ${T.border}; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;`}
-                >
-                  Import Backup
-                </button>
-              </div>
             </div>
           </Show>
 
-          {/* ── WebDAV Sync section ──────────────────────────────────────────── */}
+          {/* ── Sync section ─────────────────────────────────────────────────── */}
           <Show when={activeSection() === 'sync'}>
             <h1
               style={`font-size: 34px; font-weight: 700; color: ${T.textPrimary}; margin: 0 0 8px;`}
             >
-              WebDAV Sync
+              Sync
             </h1>
             <p style={`font-size: 14px; color: ${T.textSecondary}; margin: 0 0 28px;`}>
-              Sync boards, collections, notes, and settings to your own WebDAV server. Credentials
-              are stored locally on this device only.
+              Export or import a JSON snapshot locally, or sync to your own WebDAV server.
             </p>
 
-            <div
-              style={`background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 10px; padding: 24px; max-width: 640px; display: flex; flex-direction: column; gap: 16px;`}
-            >
-              <label style="display: flex; align-items: center; gap: 10px; font-size: 13px;">
-                <input
-                  type="checkbox"
-                  checked={webdav().enabled}
-                  onChange={(e) => setWebdav((c) => ({ ...c, enabled: e.currentTarget.checked }))}
-                />
-                Enable WebDAV sync
-              </label>
-
-              <div>
-                <div
-                  style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
-                >
-                  Server URL
+            <div style="display: flex; flex-direction: column; gap: 20px; max-width: 640px;">
+              <SettingCard
+                title="Local file"
+                description="Export or import boards, collections, notes, and settings as a JSON file. Uses the same snapshot format as WebDAV sync."
+              >
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => exportSnapshotToFile()}
+                    style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: #059669; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Export to file
+                  </button>
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => importSnapshotFromFile()}
+                    style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; color: ${T.accent}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Import from file
+                  </button>
                 </div>
-                <input
-                  type="url"
-                  placeholder="https://dav.example.com/remote.php/dav/files/user/"
-                  value={webdav().baseUrl}
-                  onInput={(e) => setWebdav((c) => ({ ...c, baseUrl: e.currentTarget.value }))}
-                  style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
-                />
-              </div>
+              </SettingCard>
 
-              <div>
-                <div
-                  style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
-                >
-                  Remote file path
-                </div>
-                <input
-                  type="text"
-                  placeholder="/katab-sync.json"
-                  value={webdav().remotePath}
-                  onInput={(e) => setWebdav((c) => ({ ...c, remotePath: e.currentTarget.value }))}
-                  style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
-                />
-              </div>
+              <SettingCard
+                title="WebDAV"
+                description="Sync boards, collections, notes, and settings to your own WebDAV server. Credentials are stored locally on this device only."
+              >
+                <label style="display: flex; align-items: center; gap: 10px; font-size: 13px;">
+                  <input
+                    type="checkbox"
+                    checked={webdav().enabled}
+                    onChange={(e) => setWebdav((c) => ({ ...c, enabled: e.currentTarget.checked }))}
+                  />
+                  Enable WebDAV sync
+                </label>
 
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                 <div>
                   <div
                     style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
                   >
-                    Username
+                    Server URL
+                  </div>
+                  <input
+                    type="url"
+                    placeholder="https://dav.example.com/remote.php/dav/files/user/"
+                    value={webdav().baseUrl}
+                    onInput={(e) => setWebdav((c) => ({ ...c, baseUrl: e.currentTarget.value }))}
+                    style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                  />
+                </div>
+
+                <div>
+                  <div
+                    style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                  >
+                    Remote file path
                   </div>
                   <input
                     type="text"
-                    value={webdav().username}
-                    onInput={(e) => setWebdav((c) => ({ ...c, username: e.currentTarget.value }))}
+                    placeholder="/katab-sync.json"
+                    value={webdav().remotePath}
+                    onInput={(e) => setWebdav((c) => ({ ...c, remotePath: e.currentTarget.value }))}
                     style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
                   />
                 </div>
-                <div>
-                  <div
-                    style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
-                  >
-                    Password
-                  </div>
-                  <input
-                    type="password"
-                    value={webdav().password}
-                    onInput={(e) => setWebdav((c) => ({ ...c, password: e.currentTarget.value }))}
-                    style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
-                  />
-                </div>
-              </div>
 
-              <Show when={syncStatus()}>
-                {(status) => (
-                  <div style={`font-size: 12px; color: ${T.textSecondary}; line-height: 1.6;`}>
-                    Status: {status().phase}
-                    {status().lastSuccessAt
-                      ? ` · Last success: ${new Date(status().lastSuccessAt ?? 0).toLocaleString()}`
-                      : ''}
-                    {status().lastError ? ` · Error: ${status().lastError}` : ''}
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div>
+                    <div
+                      style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                    >
+                      Username
+                    </div>
+                    <input
+                      type="text"
+                      value={webdav().username}
+                      onInput={(e) => setWebdav((c) => ({ ...c, username: e.currentTarget.value }))}
+                      style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                    />
                   </div>
-                )}
-              </Show>
+                  <div>
+                    <div
+                      style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                    >
+                      Password
+                    </div>
+                    <input
+                      type="password"
+                      value={webdav().password}
+                      onInput={(e) => setWebdav((c) => ({ ...c, password: e.currentTarget.value }))}
+                      style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                    />
+                  </div>
+                </div>
+
+                <Show when={syncStatus()}>
+                  {(status) => (
+                    <div style={`font-size: 12px; color: ${T.textSecondary}; line-height: 1.6;`}>
+                      Status: {status().phase}
+                      {status().lastSuccessAt
+                        ? ` · Last success: ${new Date(status().lastSuccessAt ?? 0).toLocaleString()}`
+                        : ''}
+                      {status().lastError ? ` · Error: ${status().lastError}` : ''}
+                    </div>
+                  )}
+                </Show>
+
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => saveWebDavConfig()}
+                    style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: ${T.accent}; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Save config
+                  </button>
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => testConnection()}
+                    style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; color: ${T.accent}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Test connection
+                  </button>
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => runSync('SYNC_NOW')}
+                    style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: #059669; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Sync now
+                  </button>
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => runSync('SYNC_PUSH')}
+                    style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Upload
+                  </button>
+                  <button
+                    type="button"
+                    disabled={syncBusy()}
+                    onClick={() => runSync('SYNC_PULL')}
+                    style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                  >
+                    Download
+                  </button>
+                </div>
+              </SettingCard>
 
               <Show when={syncMessage()}>
                 <div style={`font-size: 12px; color: ${T.textPrimary};`}>{syncMessage()}</div>
               </Show>
-
-              <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                <button
-                  type="button"
-                  disabled={syncBusy()}
-                  onClick={() => saveWebDavConfig()}
-                  style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: ${T.accent}; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
-                >
-                  Save config
-                </button>
-                <button
-                  type="button"
-                  disabled={syncBusy()}
-                  onClick={() => testConnection()}
-                  style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; color: ${T.accent}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
-                >
-                  Test connection
-                </button>
-                <button
-                  type="button"
-                  disabled={syncBusy()}
-                  onClick={() => runSync('SYNC_NOW')}
-                  style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: #059669; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
-                >
-                  Sync now
-                </button>
-                <button
-                  type="button"
-                  disabled={syncBusy()}
-                  onClick={() => runSync('SYNC_PUSH')}
-                  style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
-                >
-                  Upload
-                </button>
-                <button
-                  type="button"
-                  disabled={syncBusy()}
-                  onClick={() => runSync('SYNC_PULL')}
-                  style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
-                >
-                  Download
-                </button>
-              </div>
             </div>
           </Show>
 
@@ -811,17 +762,17 @@ const OptionsApp: Component = () => {
               Privacy
             </h1>
             <p style={`font-size: 14px; color: ${T.textSecondary}; margin: 0 0 28px;`}>
-              Data is stored locally in your browser. Optional WebDAV sync sends a JSON snapshot to
-              a server you configure — credentials never leave this device except to authenticate
-              with your server.
+              Data is stored locally in your browser. Export or import JSON snapshots under Sync, or
+              configure WebDAV to sync across your own devices. Credentials never leave this device
+              except to authenticate with your server.
             </p>
 
             <div
               style={`background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 10px; padding: 24px; max-width: 480px; font-size: 13px; color: ${T.textSecondary}; line-height: 1.6;`}
             >
-              KaTab does not use Google or Microsoft account sync. Configure WebDAV under the Sync
-              tab to back up and sync across your own devices. If two devices edit the same item,
-              resolve conflicts from the new tab page banner.
+              KaTab does not use Google or Microsoft account sync. Use local JSON export/import or
+              WebDAV under the Sync tab to back up and move data between devices. If two devices
+              edit the same item, resolve conflicts from the new tab page banner.
             </div>
           </Show>
         </main>

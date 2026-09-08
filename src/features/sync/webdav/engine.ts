@@ -36,6 +36,15 @@ export function isApplyingRemoteSnapshot(): boolean {
   return applyingRemote
 }
 
+export async function runApplyingRemote<T>(fn: () => Promise<T>): Promise<T> {
+  applyingRemote = true
+  try {
+    return await fn()
+  } finally {
+    applyingRemote = false
+  }
+}
+
 const runtimeStatus: SyncRuntimeStatus = {
   phase: 'idle',
   lastSuccessAt: null,
@@ -157,12 +166,7 @@ export async function pull(): Promise<{ ok: boolean; error?: string }> {
       return { ok: false, error: 'Conflicts detected' }
     }
 
-    applyingRemote = true
-    try {
-      await applySnapshotReplace(remote)
-    } finally {
-      applyingRemote = false
-    }
+    await runApplyingRemote(() => applySnapshotReplace(remote))
 
     await setSyncMeta({
       ...meta,

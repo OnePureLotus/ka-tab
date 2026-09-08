@@ -36,6 +36,8 @@ export const MessageType = {
   SYNC_PULL: 'SYNC_PULL',
   SYNC_NOW: 'SYNC_NOW',
   SYNC_STATUS_GET: 'SYNC_STATUS_GET',
+  SYNC_EXPORT_SNAPSHOT: 'SYNC_EXPORT_SNAPSHOT',
+  SYNC_IMPORT_SNAPSHOT: 'SYNC_IMPORT_SNAPSHOT',
   SYNC_DATA_APPLIED: 'SYNC_DATA_APPLIED',
   WEBDAV_TEST_CONNECTION: 'WEBDAV_TEST_CONNECTION',
   WEBDAV_SAVE_CONFIG: 'WEBDAV_SAVE_CONFIG',
@@ -74,6 +76,10 @@ export interface NoteSavePayload {
 export interface SyncResolveConflictPayload {
   key: string
   choice: 'local' | 'remote'
+}
+
+export interface SyncImportSnapshotPayload {
+  raw: string
 }
 
 /** @deprecated use SyncResolveConflictPayload */
