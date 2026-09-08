@@ -1,9 +1,9 @@
-import SiteFavicon from '@/shared/components/SiteFavicon'
 import type { Component } from 'solid-js'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { validateSiteLimit } from '../service'
 import type { Collection } from '../types'
+import CollectionSiteRow from './CollectionSiteRow'
 
 interface CollectionCardProps {
   collection: Collection
@@ -13,6 +13,8 @@ interface CollectionCardProps {
   onAddSite: (id: string) => void
   onOpenModal: (id: string) => void
   onOpenCollection: (id: string) => void
+  onEditSite: (collectionId: string, siteId: string) => void
+  onDeleteSite: (collectionId: string, siteId: string) => void
   onTabDrop?: (url: string, title: string, favicon: string) => void
 }
 
@@ -243,22 +245,12 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
       <div style="padding: 6px 0; flex: 1;">
         <For each={visibleSites()}>
           {(site) => (
-            <div
-              style="display: flex; align-items: center; gap: 8px; padding: 5px 14px; cursor: pointer; transition: background 100ms;"
-              onClick={() => chrome.tabs.create({ url: site.url })}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background =
-                  'var(--katab-color-surface-secondary)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
-            >
-              <SiteFavicon favicon={site.favicon} url={site.url} title={site.title} size={18} />
-              <span style="font-size: 12px; font-weight: 500; color: var(--katab-color-text-site); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                {site.title || site.url}
-              </span>
-            </div>
+            <CollectionSiteRow
+              site={site}
+              variant="card"
+              onEdit={() => props.onEditSite(props.collection.id, site.id)}
+              onDelete={() => props.onDeleteSite(props.collection.id, site.id)}
+            />
           )}
         </For>
 

@@ -1,0 +1,1 @@
+export const COLLECTION_CARD_MIN_WIDTH = 300

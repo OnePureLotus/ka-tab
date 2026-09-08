@@ -14,9 +14,11 @@ import {
 } from '@thisbeyond/solid-dnd'
 import type { Component } from 'solid-js'
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
+import { COLLECTION_CARD_MIN_WIDTH } from '../constants'
 import {
   addSiteToCollection,
   createCollection,
+  removeSiteFromCollection,
   renameCollection,
   updateCollectionColor,
 } from '../service'
@@ -34,6 +36,7 @@ import ChangeColorModal from './ChangeColorModal'
 import CollectionCard from './CollectionCard'
 import CollectionModal from './CollectionModal'
 import CreateCollectionModal from './CreateCollectionModal'
+import EditSiteDialog from './EditSiteDialog'
 
 // ─── Sortable card wrapper ────────────────────────────────────────────────────
 
@@ -45,6 +48,8 @@ interface SortableCardProps {
   onAddSite: (id: string) => void
   onOpenModal: (id: string) => void
   onOpenCollection: (id: string) => void
+  onEditSite: (collectionId: string, siteId: string) => void
+  onDeleteSite: (collectionId: string, siteId: string) => void
   onTabDrop?: (url: string, title: string, favicon: string) => void
 }
 
@@ -70,6 +75,8 @@ const SortableCard: Component<SortableCardProps> = (props) => {
         onAddSite={props.onAddSite}
         onOpenModal={props.onOpenModal}
         onOpenCollection={props.onOpenCollection}
+        onEditSite={props.onEditSite}
+        onDeleteSite={props.onDeleteSite}
         {...(props.onTabDrop ? { onTabDrop: props.onTabDrop } : {})}
       />
     </div>
@@ -91,6 +98,12 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   const [addSiteFor, setAddSiteFor] = createSignal<string | null>(null)
   const [colorChangeFor, setColorChangeFor] = createSignal<string | null>(null)
   const [modalCollectionId, setModalCollectionId] = createSignal<string | null>(null)
+  const [editSiteFor, setEditSiteFor] = createSignal<{
+    collectionId: string
+    siteId: string
+  } | null>(null)
+
+  const gridStyle = `display: grid; grid-template-columns: repeat(auto-fill, minmax(${COLLECTION_CARD_MIN_WIDTH}px, 1fr)); gap: 16px;`
 
   createEffect(() => {
     const trigger = props.triggerCreate
@@ -119,6 +132,16 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   const modalCollection = createMemo(
     () => collectionsStore.items.find((c) => c.id === modalCollectionId()) ?? null,
   )
+
+  const editSiteContext = createMemo(() => {
+    const target = editSiteFor()
+    if (!target) return null
+    const collection = collectionsStore.items.find((c) => c.id === target.collectionId)
+    if (!collection) return null
+    const site = collection.sites.find((s) => s.id === target.siteId)
+    if (!site) return null
+    return { collection, site }
+  })
 
   async function handleCreate(name: string, color: string) {
     const boardId = props.activeBoardId
@@ -157,6 +180,17 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     if (!confirm('Delete this collection?')) return
     const col = collectionsStore.items.find((c) => c.id === id)
     await removeCollection(id, col?.boardId)
+  }
+
+  async function handleDeleteSite(collectionId: string, siteId: string) {
+    const col = collectionsStore.items.find((c) => c.id === collectionId)
+    if (!col) return
+    const updated = removeSiteFromCollection(col, siteId)
+    await updateCollection(updated)
+  }
+
+  function handleEditSite(collectionId: string, siteId: string) {
+    setEditSiteFor({ collectionId, siteId })
   }
 
   async function handleTabDrop(collectionId: string, url: string, title: string, favicon: string) {
@@ -221,7 +255,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
 
       {/* Loading skeleton */}
       <Show when={isLoading()}>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+        <div style={gridStyle}>
           <For each={[1, 2, 3]}>
             {() => (
               <div style="border-radius: 12px; border: 1px solid var(--katab-color-border); background: var(--katab-color-surface); padding: 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -276,7 +310,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
         >
           <DragDropSensors>
             <SortableProvider ids={sortableIds()}>
-              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+              <div style={gridStyle}>
                 <For each={filteredCollections()}>
                   {(collection) => (
                     <SortableCard
@@ -287,6 +321,8 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
                       onAddSite={(id) => setAddSiteFor(id)}
                       onOpenModal={(id) => setModalCollectionId(id)}
                       onOpenCollection={props.onOpenCollection}
+                      onEditSite={handleEditSite}
+                      onDeleteSite={handleDeleteSite}
                       onTabDrop={(url, title, favicon) =>
                         handleTabDrop(collection.id, url, title, favicon)
                       }
@@ -338,6 +374,8 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
                     onAddSite={() => {}}
                     onOpenModal={() => {}}
                     onOpenCollection={() => {}}
+                    onEditSite={() => {}}
+                    onDeleteSite={() => {}}
                   />
                 </div>
               ) : null
@@ -352,6 +390,16 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
             collection={collectionsStore.items.find((c) => c.id === addSiteFor())!}
             onClose={() => setAddSiteFor(null)}
           />
+        </Show>
+
+        <Show when={editSiteContext()}>
+          {(ctx) => (
+            <EditSiteDialog
+              collection={ctx().collection}
+              site={ctx().site}
+              onClose={() => setEditSiteFor(null)}
+            />
+          )}
         </Show>
 
         <Show
@@ -385,6 +433,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
           setAddSiteFor(id)
         }}
         onOpenCollection={props.onOpenCollection}
+        onEditSite={handleEditSite}
       />
     </div>
   )

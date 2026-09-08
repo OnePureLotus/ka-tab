@@ -1,10 +1,10 @@
 import Modal from '@/shared/components/Modal'
-import SiteFavicon from '@/shared/components/SiteFavicon'
 import type { Component } from 'solid-js'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { removeSiteFromCollection, reorderSitesInCollection } from '../service'
 import { updateCollection } from '../store'
 import type { Collection } from '../types'
+import CollectionSiteRow from './CollectionSiteRow'
 
 interface CollectionModalProps {
   open: boolean
@@ -12,6 +12,7 @@ interface CollectionModalProps {
   onClose: () => void
   onAddSite: (collectionId: string) => void
   onOpenCollection: (collectionId: string) => void
+  onEditSite: (collectionId: string, siteId: string) => void
 }
 
 const CollectionModal: Component<CollectionModalProps> = (props) => {
@@ -62,9 +63,11 @@ const CollectionModal: Component<CollectionModalProps> = (props) => {
           >
             <For each={filteredSites()}>
               {(site, idx) => (
-                <div
-                  style={`display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--katab-color-border); background: ${dragOver() === idx() ? 'var(--katab-color-surface-secondary)' : 'transparent'};`}
+                <CollectionSiteRow
+                  site={site}
+                  variant="modal"
                   draggable
+                  dragOver={dragOver() === idx()}
                   onDragStart={() => setDragging(idx())}
                   onDragOver={(e) => {
                     e.preventDefault()
@@ -72,27 +75,9 @@ const CollectionModal: Component<CollectionModalProps> = (props) => {
                   }}
                   onDragLeave={() => setDragOver(null)}
                   onDrop={() => handleDrop(idx())}
-                >
-                  <span style="cursor: grab; color: var(--katab-color-text-secondary); font-size: 14px; flex-shrink: 0;">
-                    {String.fromCodePoint(0x2807)}
-                  </span>
-                  <SiteFavicon favicon={site.favicon} url={site.url} title={site.title} size={16} />
-                  <div style="flex: 1; overflow: hidden;">
-                    <div style="font-size: 13px; color: var(--katab-color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      {site.title || site.url}
-                    </div>
-                    <div style="font-size: 11px; color: var(--katab-color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      {site.url}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteSite(site.id)}
-                    style="width: 26px; height: 26px; border: none; background: transparent; cursor: pointer; border-radius: 4px; color: #ef4444; font-size: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;"
-                    title="Remove site"
-                  >
-                    x
-                  </button>
-                </div>
+                  onEdit={() => props.collection && props.onEditSite(props.collection.id, site.id)}
+                  onDelete={() => handleDeleteSite(site.id)}
+                />
               )}
             </For>
           </Show>
