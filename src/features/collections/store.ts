@@ -30,13 +30,42 @@ const [collectionsStore, setCollectionsStore] = createStore<CollectionsState>({
 
 export { collectionsStore, setCollectionsStore }
 
+function normalizeCollectionsById(items: Collection[]): Collection[] {
+  const byId = new Map<string, Collection>()
+  for (const col of items) {
+    const existing = byId.get(col.id)
+    if (!existing || col.updatedAt >= existing.updatedAt) {
+      byId.set(col.id, col)
+    }
+  }
+  return Array.from(byId.values())
+}
+
 function mergeCollectionsFromStorage(loaded: Collection[], existing: Collection[]): Collection[] {
   const existingById = new Map(existing.map((c) => [c.id, c]))
-  return loaded.map((loadedCol) => {
+  const merged = loaded.map((loadedCol) => {
     const local = existingById.get(loadedCol.id)
-    if (local && local.updatedAt > loadedCol.updatedAt) return local
+    if (local && local.updatedAt >= loadedCol.updatedAt) return local
     return loadedCol
   })
+  return normalizeCollectionsById(merged)
+}
+
+export function getCollectionById(id: string): Collection | undefined {
+  const matches = collectionsStore.items.filter((c) => c.id === id)
+  if (matches.length === 0) return undefined
+  return matches.reduce((best, cur) => (cur.updatedAt > best.updatedAt ? cur : best), matches[0]!)
+}
+
+function upsertCollectionInStore(collection: Collection): void {
+  setCollectionsStore(
+    produce((s) => {
+      const idx = s.items.findIndex((c) => c.id === collection.id)
+      if (idx === -1) s.items.push(collection)
+      else s.items[idx] = collection
+      s.items = normalizeCollectionsById(s.items)
+    }),
+  )
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -68,34 +97,24 @@ export function getCollectionsForBoard(boardId: string): Collection[] {
   const board = boardsStore.items.find((b) => b.id === boardId)
   if (!board) return []
 
-  const byId = new Map(collectionsStore.items.map((c) => [c.id, c]))
   return board.collectionIds
-    .map((id) => byId.get(id))
+    .map((id) => getCollectionById(id))
     .filter((c): c is Collection => c != null && c.boardId === boardId)
 }
 
 export async function addCollection(collection: Collection): Promise<void> {
   await persistCollection(collection)
   await attachCollectionToBoard(collection.boardId, collection.id)
-  setCollectionsStore(
-    produce((s) => {
-      s.items.push(collection)
-    }),
-  )
+  upsertCollectionInStore(collection)
 }
 
 export async function updateCollection(collection: Collection): Promise<void> {
-  setCollectionsStore(
-    produce((s) => {
-      const idx = s.items.findIndex((c) => c.id === collection.id)
-      if (idx !== -1) s.items[idx] = collection
-    }),
-  )
+  upsertCollectionInStore(collection)
   await persistCollection(collection)
 }
 
 export async function removeCollection(id: string, boardId?: string): Promise<void> {
-  const col = collectionsStore.items.find((c) => c.id === id)
+  const col = getCollectionById(id)
   const resolvedBoardId = boardId ?? col?.boardId
   await removeFromStorage(id)
   if (resolvedBoardId) {
@@ -130,18 +149,9 @@ export function subscribeCollectionsStorage(): () => void {
   const unwatchEntities = listenStorageChanges((update) => {
     if (update.type !== 'collection' || !update.newValue) return
     const collection = update.newValue as Collection
-    setCollectionsStore(
-      produce((s) => {
-        const idx = s.items.findIndex((c) => c.id === collection.id)
-        if (idx === -1) {
-          s.items.push(collection)
-          return
-        }
-        const existing = s.items[idx]
-        if (existing && existing.updatedAt > collection.updatedAt) return
-        s.items[idx] = collection
-      }),
-    )
+    const existing = getCollectionById(collection.id)
+    if (existing && existing.updatedAt > collection.updatedAt) return
+    upsertCollectionInStore(collection)
   })
   return () => {
     unwatchIndex()

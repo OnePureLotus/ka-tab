@@ -25,6 +25,7 @@ import {
 import { collectionsStore } from '../store'
 import {
   addCollection,
+  getCollectionById,
   getCollectionsForBoard,
   removeCollection,
   reorderCollectionsInStore,
@@ -129,14 +130,16 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     )
   })
 
-  const modalCollection = createMemo(
-    () => collectionsStore.items.find((c) => c.id === modalCollectionId()) ?? null,
-  )
+  const modalCollection = createMemo(() => {
+    const id = modalCollectionId()
+    if (!id) return null
+    return getCollectionById(id) ?? null
+  })
 
   const editSiteContext = createMemo(() => {
     const target = editSiteFor()
     if (!target) return null
-    const collection = collectionsStore.items.find((c) => c.id === target.collectionId)
+    const collection = getCollectionById(target.collectionId)
     if (!collection) return null
     const site = collection.sites.find((s) => s.id === target.siteId)
     if (!site) return null
@@ -154,7 +157,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleRename(id: string, name: string) {
-    const col = collectionsStore.items.find((c) => c.id === id)
+    const col = getCollectionById(id)
     if (!col) return
     await updateCollection(renameCollection(col, name))
   }
@@ -164,7 +167,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleColorPicked(id: string, color: string, tabGroupColor?: string) {
-    const col = collectionsStore.items.find((c) => c.id === id)
+    const col = getCollectionById(id)
     if (!col) return
     await updateCollection(
       updateCollectionColor(
@@ -183,7 +186,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleDeleteSite(collectionId: string, siteId: string) {
-    const col = collectionsStore.items.find((c) => c.id === collectionId)
+    const col = getCollectionById(collectionId)
     if (!col) return
     const updated = removeSiteFromCollection(col, siteId)
     await updateCollection(updated)
@@ -194,7 +197,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleTabDrop(collectionId: string, url: string, title: string, favicon: string) {
-    const col = collectionsStore.items.find((c) => c.id === collectionId)
+    const col = getCollectionById(collectionId)
     if (!col) return
     const isDuplicate = col.sites.some((s) => s.url === url)
     if (isDuplicate) {

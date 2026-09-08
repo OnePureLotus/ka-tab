@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { validateSiteLimit } from '../service'
+import { collectionsStore } from '../store'
 import type { Collection } from '../types'
 import CollectionSiteRow from './CollectionSiteRow'
 
@@ -41,11 +42,15 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
     setMenuOpen(false)
   }
 
-  const visibleSites = createMemo(() => props.collection.sites.slice(0, MAX_VISIBLE_SITES))
-  const hiddenCount = createMemo(() =>
-    Math.max(0, props.collection.sites.length - MAX_VISIBLE_SITES),
-  )
-  const siteStatus = createMemo(() => validateSiteLimit(props.collection))
+  const collection = createMemo(() => {
+    const matches = collectionsStore.items.filter((c) => c.id === props.collection.id)
+    if (matches.length === 0) return props.collection
+    return matches.reduce((best, cur) => (cur.updatedAt > best.updatedAt ? cur : best), matches[0]!)
+  })
+
+  const visibleSites = createMemo(() => collection().sites.slice(0, MAX_VISIBLE_SITES))
+  const hiddenCount = createMemo(() => Math.max(0, collection().sites.length - MAX_VISIBLE_SITES))
+  const siteStatus = createMemo(() => validateSiteLimit(collection()))
 
   function handleRenameSubmit() {
     if (cancelRename) {
@@ -53,17 +58,17 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
       return
     }
     const name = newName().trim()
-    if (name && name !== props.collection.name) {
-      props.onRename(props.collection.id, name)
+    if (name && name !== collection().name) {
+      props.onRename(collection().id, name)
     }
     setRenaming(false)
   }
 
   function handleOpenAll() {
-    props.onOpenCollection(props.collection.id)
+    props.onOpenCollection(collection().id)
   }
 
-  const accentColor = () => props.collection.color || 'var(--katab-color-accent)'
+  const accentColor = () => collection().color || 'var(--katab-color-accent)'
 
   return (
     <div
@@ -137,9 +142,9 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
         >
           <span
             style="flex: 1; font-weight: 600; font-size: 14px; color: var(--katab-color-text-primary); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-            onClick={() => props.onOpenModal(props.collection.id)}
+            onClick={() => props.onOpenModal(collection().id)}
           >
-            {props.collection.name}
+            {collection().name}
           </span>
         </Show>
 
@@ -169,7 +174,7 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
               onClick={() => {
                 setMenuOpen(false)
                 setRenaming(true)
-                setNewName(props.collection.name)
+                setNewName(collection().name)
               }}
               style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 14px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--katab-color-text-primary); transition: background 100ms;"
               onMouseEnter={(e) => {
@@ -190,7 +195,7 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
             <button
               onClick={() => {
                 setMenuOpen(false)
-                props.onChangeColor(props.collection.id, props.collection.color)
+                props.onChangeColor(collection().id, collection().color)
               }}
               style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 14px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--katab-color-text-primary); transition: background 100ms;"
               onMouseEnter={(e) => {
@@ -221,7 +226,7 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
             <button
               onClick={() => {
                 setMenuOpen(false)
-                props.onDelete(props.collection.id)
+                props.onDelete(collection().id)
               }}
               style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 14px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: #ef4444; transition: background 100ms;"
               onMouseEnter={(e) => {
@@ -248,18 +253,18 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
             <CollectionSiteRow
               site={site}
               variant="card"
-              onEdit={() => props.onEditSite(props.collection.id, site.id)}
-              onDelete={() => props.onDeleteSite(props.collection.id, site.id)}
+              onEdit={() => props.onEditSite(collection().id, site.id)}
+              onDelete={() => props.onDeleteSite(collection().id, site.id)}
             />
           )}
         </For>
 
         <Show when={hiddenCount() > 0}>
           <button
-            onClick={() => props.onOpenModal(props.collection.id)}
+            onClick={() => props.onOpenModal(collection().id)}
             style="width: 100%; text-align: left; padding: 4px 14px; border: none; background: transparent; cursor: pointer; font-size: 12px; color: var(--katab-color-text-secondary);"
           >
-            + {hiddenCount()} more ({props.collection.sites.length}/{30})
+            + {hiddenCount()} more ({collection().sites.length}/{30})
           </button>
         </Show>
       </div>
@@ -267,7 +272,7 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
       {/* Footer */}
       <div style="display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--katab-color-border); flex-shrink: 0;">
         <button
-          onClick={() => props.onAddSite(props.collection.id)}
+          onClick={() => props.onAddSite(collection().id)}
           disabled={siteStatus().atLimit}
           style={`flex: 1; padding: 7px 10px; border: 1px solid var(--katab-color-border); border-radius: 7px; background: var(--katab-color-surface); cursor: ${siteStatus().atLimit ? 'not-allowed' : 'pointer'}; font-size: 12px; font-weight: 500; color: var(--katab-color-text-primary); opacity: ${siteStatus().atLimit ? '0.5' : '1'};`}
         >
@@ -275,8 +280,8 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
         </button>
         <button
           onClick={handleOpenAll}
-          disabled={props.collection.sites.length === 0}
-          style={`width: 90px; flex-shrink: 0; padding: 7px 10px; border: none; border-radius: 7px; background: var(--katab-color-accent); color: #fff; cursor: ${props.collection.sites.length === 0 ? 'not-allowed' : 'pointer'}; font-size: 12px; font-weight: 500; opacity: ${props.collection.sites.length === 0 ? '0.5' : '1'};`}
+          disabled={collection().sites.length === 0}
+          style={`width: 90px; flex-shrink: 0; padding: 7px 10px; border: none; border-radius: 7px; background: var(--katab-color-accent); color: #fff; cursor: ${collection().sites.length === 0 ? 'not-allowed' : 'pointer'}; font-size: 12px; font-weight: 500; opacity: ${collection().sites.length === 0 ? '0.5' : '1'};`}
         >
           Open all
         </button>
