@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
+import { COLLECTION_CARD_MIN_HEIGHT } from '../constants'
 import { validateSiteLimit } from '../service'
 import { collectionsStore } from '../store'
 import type { Collection } from '../types'
@@ -18,8 +19,6 @@ interface CollectionCardProps {
   onDeleteSite: (collectionId: string, siteId: string) => void
   onTabDrop?: (url: string, title: string, favicon: string) => void
 }
-
-const MAX_VISIBLE_SITES = 5
 
 const CollectionCard: Component<CollectionCardProps> = (props) => {
   const [menuOpen, setMenuOpen] = createSignal(false)
@@ -45,11 +44,13 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
   const collection = createMemo(() => {
     const matches = collectionsStore.items.filter((c) => c.id === props.collection.id)
     if (matches.length === 0) return props.collection
-    return matches.reduce((best, cur) => (cur.updatedAt > best.updatedAt ? cur : best), matches[0]!)
+    return matches.reduce((best, cur) => {
+      if (cur.updatedAt > best.updatedAt) return cur
+      if (cur.updatedAt < best.updatedAt) return best
+      return cur.sites.length > best.sites.length ? cur : best
+    }, matches[0]!)
   })
 
-  const visibleSites = createMemo(() => collection().sites.slice(0, MAX_VISIBLE_SITES))
-  const hiddenCount = createMemo(() => Math.max(0, collection().sites.length - MAX_VISIBLE_SITES))
   const siteStatus = createMemo(() => validateSiteLimit(collection()))
 
   function handleRenameSubmit() {
@@ -111,7 +112,7 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
           } catch {}
         })
       }}
-      style={`background: var(--katab-color-surface); border: 2px solid ${isDragOver() ? 'var(--katab-color-accent)' : accentColor()}; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: ${isDragOver() ? '0 0 0 4px color-mix(in srgb, var(--katab-color-accent) 20%, transparent)' : '0 1px 3px rgba(0,0,0,0.06)'}; min-height: 268px; transition: border-color 150ms, box-shadow 150ms;`}
+      style={`background: var(--katab-color-surface); border: 2px solid ${isDragOver() ? 'var(--katab-color-accent)' : accentColor()}; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: ${isDragOver() ? '0 0 0 4px color-mix(in srgb, var(--katab-color-accent) 20%, transparent)' : '0 1px 3px rgba(0,0,0,0.06)'}; min-height: ${COLLECTION_CARD_MIN_HEIGHT}px; transition: border-color 150ms, box-shadow 150ms;`}
     >
       {/* Tinted Header */}
       <div
@@ -247,8 +248,8 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
       </Show>
 
       {/* Sites list */}
-      <div style="padding: 6px 0; flex: 1;">
-        <For each={visibleSites()}>
+      <div style="padding: 6px 0;">
+        <For each={collection().sites}>
           {(site) => (
             <CollectionSiteRow
               site={site}
@@ -258,15 +259,6 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
             />
           )}
         </For>
-
-        <Show when={hiddenCount() > 0}>
-          <button
-            onClick={() => props.onOpenModal(collection().id)}
-            style="width: 100%; text-align: left; padding: 4px 14px; border: none; background: transparent; cursor: pointer; font-size: 12px; color: var(--katab-color-text-secondary);"
-          >
-            + {hiddenCount()} more ({collection().sites.length}/{30})
-          </button>
-        </Show>
       </div>
 
       {/* Footer */}

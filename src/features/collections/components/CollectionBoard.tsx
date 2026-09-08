@@ -14,7 +14,11 @@ import {
 } from '@thisbeyond/solid-dnd'
 import type { Component } from 'solid-js'
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
-import { COLLECTION_CARD_MIN_WIDTH } from '../constants'
+import {
+  COLLECTION_CARD_GAP,
+  COLLECTION_CARD_MIN_HEIGHT,
+  COLLECTION_CARD_MIN_WIDTH,
+} from '../constants'
 import {
   addSiteToCollection,
   createCollection,
@@ -38,6 +42,9 @@ import CollectionCard from './CollectionCard'
 import CollectionModal from './CollectionModal'
 import CreateCollectionModal from './CreateCollectionModal'
 import EditSiteDialog from './EditSiteDialog'
+import { MasonryItem, MasonryLayout } from './MasonryLayout'
+
+const CREATE_COLLECTION_ITEM_ID = '__create_collection__'
 
 // ─── Sortable card wrapper ────────────────────────────────────────────────────
 
@@ -103,8 +110,9 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     collectionId: string
     siteId: string
   } | null>(null)
+  const [masonryRelayout, setMasonryRelayout] = createSignal(0)
 
-  const gridStyle = `display: grid; grid-template-columns: repeat(auto-fill, minmax(${COLLECTION_CARD_MIN_WIDTH}px, 1fr)); gap: 16px;`
+  const skeletonGridStyle = `display: grid; grid-template-columns: repeat(auto-fill, minmax(${COLLECTION_CARD_MIN_WIDTH}px, 1fr)); gap: ${COLLECTION_CARD_GAP}px;`
 
   createEffect(() => {
     const trigger = props.triggerCreate
@@ -129,6 +137,11 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
         c.sites.some((s) => s.title.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)),
     )
   })
+
+  const masonryItemIds = createMemo(() => [
+    ...filteredCollections().map((c) => c.id),
+    CREATE_COLLECTION_ITEM_ID,
+  ])
 
   const modalCollection = createMemo(() => {
     const id = modalCollectionId()
@@ -228,6 +241,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     reordered.splice(from, 1)
     reordered.splice(to, 0, item)
     await reorderCollectionsInStore(boardId, reordered)
+    setMasonryRelayout((n) => n + 1)
   }
 
   const isLoading = () => collectionsStore.loading || boardsStore.loading
@@ -258,7 +272,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
 
       {/* Loading skeleton */}
       <Show when={isLoading()}>
-        <div style={gridStyle}>
+        <div style={skeletonGridStyle}>
           <For each={[1, 2, 3]}>
             {() => (
               <div style="border-radius: 12px; border: 1px solid var(--katab-color-border); background: var(--katab-color-surface); padding: 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -313,54 +327,63 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
         >
           <DragDropSensors>
             <SortableProvider ids={sortableIds()}>
-              <div style={gridStyle}>
+              <MasonryLayout
+                itemIds={masonryItemIds}
+                minColumnWidth={COLLECTION_CARD_MIN_WIDTH}
+                gap={COLLECTION_CARD_GAP}
+                relayoutToken={masonryRelayout}
+              >
                 <For each={filteredCollections()}>
                   {(collection) => (
-                    <SortableCard
-                      collection={collection}
-                      onRename={handleRename}
-                      onChangeColor={handleChangeColor}
-                      onDelete={handleDelete}
-                      onAddSite={(id) => setAddSiteFor(id)}
-                      onOpenModal={(id) => setModalCollectionId(id)}
-                      onOpenCollection={props.onOpenCollection}
-                      onEditSite={handleEditSite}
-                      onDeleteSite={handleDeleteSite}
-                      onTabDrop={(url, title, favicon) =>
-                        handleTabDrop(collection.id, url, title, favicon)
-                      }
-                    />
+                    <MasonryItem id={collection.id}>
+                      <SortableCard
+                        collection={collection}
+                        onRename={handleRename}
+                        onChangeColor={handleChangeColor}
+                        onDelete={handleDelete}
+                        onAddSite={(id) => setAddSiteFor(id)}
+                        onOpenModal={(id) => setModalCollectionId(id)}
+                        onOpenCollection={props.onOpenCollection}
+                        onEditSite={handleEditSite}
+                        onDeleteSite={handleDeleteSite}
+                        onTabDrop={(url, title, favicon) =>
+                          handleTabDrop(collection.id, url, title, favicon)
+                        }
+                      />
+                    </MasonryItem>
                   )}
                 </For>
 
-                <button
-                  onClick={() => setShowCreate(true)}
-                  style="border: 1px solid var(--katab-color-border); border-radius: 8px; background: var(--katab-color-surface); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; min-height: 268px; transition: border-color 150ms, box-shadow 150ms;"
-                  onMouseEnter={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.borderColor =
-                      'var(--katab-color-accent)'
-                    ;(e.currentTarget as HTMLElement).style.boxShadow =
-                      '0 2px 8px rgba(79,70,229,0.10)'
-                  }}
-                  onMouseLeave={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.borderColor =
-                      'var(--katab-color-border)'
-                    ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
-                  }}
-                >
-                  <div style="width: 56px; height: 56px; border-radius: 28px; background: var(--katab-color-chip-bg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: var(--katab-color-accent);">
-                    +
-                  </div>
-                  <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
-                    <span style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
-                      Create Collection
-                    </span>
-                    <span style="font-size: 14px; font-weight: 500; color: var(--katab-color-text-secondary); text-align: center;">
-                      Pick a color, then drag tabs into it.
-                    </span>
-                  </div>
-                </button>
-              </div>
+                <MasonryItem id={CREATE_COLLECTION_ITEM_ID}>
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    style={`border: 1px solid var(--katab-color-border); border-radius: 8px; background: var(--katab-color-surface); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; min-height: ${COLLECTION_CARD_MIN_HEIGHT}px; width: 100%; box-sizing: border-box; transition: border-color 150ms, box-shadow 150ms;`}
+                    onMouseEnter={(e) => {
+                      ;(e.currentTarget as HTMLElement).style.borderColor =
+                        'var(--katab-color-accent)'
+                      ;(e.currentTarget as HTMLElement).style.boxShadow =
+                        '0 2px 8px rgba(79,70,229,0.10)'
+                    }}
+                    onMouseLeave={(e) => {
+                      ;(e.currentTarget as HTMLElement).style.borderColor =
+                        'var(--katab-color-border)'
+                      ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
+                    }}
+                  >
+                    <div style="width: 56px; height: 56px; border-radius: 28px; background: var(--katab-color-chip-bg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: var(--katab-color-accent);">
+                      +
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                      <span style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
+                        Create Collection
+                      </span>
+                      <span style="font-size: 14px; font-weight: 500; color: var(--katab-color-text-secondary); text-align: center;">
+                        Pick a color, then drag tabs into it.
+                      </span>
+                    </div>
+                  </button>
+                </MasonryItem>
+              </MasonryLayout>
             </SortableProvider>
           </DragDropSensors>
 

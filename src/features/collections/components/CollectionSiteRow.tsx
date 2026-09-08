@@ -67,7 +67,7 @@ const CollectionSiteRow: Component<CollectionSiteRowProps> = (props) => {
         fallback={
           <ScrollingText
             active={hovered()}
-            style="font-size: 12px; font-weight: 500; color: var(--katab-color-text-site);"
+            textStyle="font-size: 12px; font-weight: 500; color: var(--katab-color-text-site);"
           >
             {displayTitle()}
           </ScrollingText>
@@ -76,7 +76,7 @@ const CollectionSiteRow: Component<CollectionSiteRowProps> = (props) => {
         <div style="flex: 1; min-width: 0; overflow: hidden;">
           <ScrollingText
             active={hovered()}
-            style="font-size: 13px; color: var(--katab-color-text-primary);"
+            textStyle="font-size: 13px; color: var(--katab-color-text-primary);"
           >
             {displayTitle()}
           </ScrollingText>

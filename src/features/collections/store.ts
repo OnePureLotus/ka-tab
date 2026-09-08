@@ -30,11 +30,17 @@ const [collectionsStore, setCollectionsStore] = createStore<CollectionsState>({
 
 export { collectionsStore, setCollectionsStore }
 
+function isPreferredCollection(candidate: Collection, current: Collection): boolean {
+  if (candidate.updatedAt > current.updatedAt) return true
+  if (candidate.updatedAt < current.updatedAt) return false
+  return candidate.sites.length > current.sites.length
+}
+
 function normalizeCollectionsById(items: Collection[]): Collection[] {
   const byId = new Map<string, Collection>()
   for (const col of items) {
     const existing = byId.get(col.id)
-    if (!existing || col.updatedAt >= existing.updatedAt) {
+    if (!existing || isPreferredCollection(col, existing)) {
       byId.set(col.id, col)
     }
   }
@@ -54,7 +60,7 @@ function mergeCollectionsFromStorage(loaded: Collection[], existing: Collection[
 export function getCollectionById(id: string): Collection | undefined {
   const matches = collectionsStore.items.filter((c) => c.id === id)
   if (matches.length === 0) return undefined
-  return matches.reduce((best, cur) => (cur.updatedAt > best.updatedAt ? cur : best), matches[0]!)
+  return matches.reduce((best, cur) => (isPreferredCollection(cur, best) ? cur : best), matches[0]!)
 }
 
 function upsertCollectionInStore(collection: Collection): void {
