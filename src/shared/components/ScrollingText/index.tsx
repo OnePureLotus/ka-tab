@@ -7,7 +7,10 @@ interface ScrollingTextProps {
   textStyle?: string
 }
 
+let animCounter = 0
+
 const ScrollingText: Component<ScrollingTextProps> = (props) => {
+  const animId = `katab-scroll-${++animCounter}`
   let containerRef: HTMLDivElement | undefined
   let measureRef: HTMLSpanElement | undefined
   const [overflowing, setOverflowing] = createSignal(false)
@@ -17,16 +20,20 @@ const ScrollingText: Component<ScrollingTextProps> = (props) => {
   function measure() {
     if (!containerRef || !measureRef) return
     const available = containerRef.clientWidth
-    const content = measureRef.scrollWidth
+    const content = measureRef.getBoundingClientRect().width
     const diff = content - available
     setOverflowing(diff > 2)
     setScrollDistance(Math.max(0, diff))
   }
 
+  function scheduleMeasure() {
+    requestAnimationFrame(measure)
+  }
+
   onMount(() => {
     setReduceMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-    measure()
-    const observer = new ResizeObserver(measure)
+    scheduleMeasure()
+    const observer = new ResizeObserver(scheduleMeasure)
     if (containerRef) observer.observe(containerRef)
     onCleanup(() => observer.disconnect())
   })
@@ -34,30 +41,32 @@ const ScrollingText: Component<ScrollingTextProps> = (props) => {
   createEffect(() => {
     props.active
     props.children
-    measure()
+    scheduleMeasure()
   })
 
-  const shouldScroll = () => props.active && overflowing() && !reduceMotion()
+  const shouldScroll = () => Boolean(props.active && overflowing() && !reduceMotion())
   const duration = () => Math.max(3, scrollDistance() / 28)
 
   return (
     <>
       <style>
         {`
-          @keyframes katab-scroll-text {
-            0%, 12% { transform: translateX(0); }
-            88%, 100% { transform: translateX(calc(-1 * var(--katab-scroll-distance, 0px))); }
+          @keyframes ${animId} {
+            0%, 15% { transform: translateX(0); }
+            85%, 100% { transform: translateX(-${scrollDistance()}px); }
           }
-          .katab-scrolling-text__label {
+          .${animId}__label {
             display: block;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            min-width: 0;
           }
-          .katab-scrolling-text__label--scroll {
+          .${animId}__label--scroll {
             display: inline-block;
             white-space: nowrap;
-            animation: katab-scroll-text var(--katab-scroll-duration, 4s) linear infinite;
+            animation: ${animId} ${duration()}s linear infinite;
+            will-change: transform;
           }
         `}
       </style>
@@ -65,19 +74,13 @@ const ScrollingText: Component<ScrollingTextProps> = (props) => {
         <span
           ref={measureRef}
           aria-hidden="true"
-          style={`position: absolute; visibility: hidden; white-space: nowrap; pointer-events: none; height: 0; overflow: hidden; ${props.textStyle ?? ''}`}
+          style={`position: absolute; left: 0; top: 0; visibility: hidden; white-space: nowrap; pointer-events: none; ${props.textStyle ?? ''}`}
         >
           {props.children}
         </span>
         <span
-          class={
-            shouldScroll() ? 'katab-scrolling-text__label--scroll' : 'katab-scrolling-text__label'
-          }
-          style={
-            shouldScroll()
-              ? `--katab-scroll-distance: ${scrollDistance()}px; --katab-scroll-duration: ${duration()}s; ${props.textStyle ?? ''}`
-              : (props.textStyle ?? '')
-          }
+          class={shouldScroll() ? `${animId}__label--scroll` : `${animId}__label`}
+          style={props.textStyle ?? ''}
         >
           {props.children}
         </span>
