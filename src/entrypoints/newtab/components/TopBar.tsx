@@ -1,8 +1,13 @@
 import { boardsStore } from '@/features/boards/store'
 import { collectionsStore } from '@/features/collections/store'
 import { notesStore } from '@/features/notes/store'
+import { sendCommand } from '@/shared/messaging/client'
+import { MessageType } from '@/shared/messaging/types'
+import { showToast } from '@/shared/toast'
 import type { Component } from 'solid-js'
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+
+type SyncCommandResult = { ok: boolean; error?: string }
 
 interface TopBarProps {
   onAddCollection?: () => void
@@ -24,6 +29,7 @@ interface SearchResult {
 const TopBar: Component<TopBarProps> = (props) => {
   const [query, setQuery] = createSignal('')
   const [dropdownOpen, setDropdownOpen] = createSignal(false)
+  const [syncBusy, setSyncBusy] = createSignal(false)
   const [isDark, setIsDark] = createSignal(
     window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
@@ -112,6 +118,29 @@ const TopBar: Component<TopBarProps> = (props) => {
     note: '📝',
   }
 
+  async function runManualSync(direction: 'SYNC_PUSH' | 'SYNC_PULL') {
+    if (syncBusy()) return
+    setSyncBusy(true)
+    const label = direction === 'SYNC_PUSH' ? 'Upload' : 'Download'
+    try {
+      const res = await sendCommand<undefined, SyncCommandResult>({
+        type: MessageType[direction],
+      })
+      if (res.ok) {
+        showToast(`${label} completed`, { type: 'success' })
+      } else {
+        showToast(`${label} failed`, { type: 'error', body: String(res.error ?? 'Unknown error') })
+      }
+    } catch (err) {
+      showToast(`${label} failed`, { type: 'error', body: String(err) })
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const actionBtnStyle =
+    'height: 32px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--katab-color-border); background: var(--katab-color-surface); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--katab-color-text-primary); flex-shrink: 0;'
+
   return (
     <header style="height: 60px; display: flex; align-items: center; padding: 0 24px; gap: 16px; background: var(--katab-color-surface); border-bottom: 1px solid var(--katab-color-border); flex-shrink: 0; position: relative; z-index: 10;">
       {/* Logo */}
@@ -147,6 +176,7 @@ const TopBar: Component<TopBarProps> = (props) => {
             <For each={results()}>
               {(result) => (
                 <button
+                  type="button"
                   onMouseDown={() => handleResultClick(result)}
                   style="width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: none; background: transparent; cursor: pointer; text-align: left; transition: background 120ms;"
                   onMouseEnter={(e) => {
@@ -183,13 +213,34 @@ const TopBar: Component<TopBarProps> = (props) => {
         {isDark() ? 'System: Dark' : 'System: Light'}
       </div>
 
-      <button
-        onClick={props.onOpenSettings}
-        title="Settings"
-        style="height: 32px; padding: 0 14px; border-radius: 7px; border: 1px solid var(--katab-color-border); background: var(--katab-color-surface); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--katab-color-accent); flex-shrink: 0;"
-      >
-        Settings
-      </button>
+      <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+        <button
+          type="button"
+          title="Upload local data to WebDAV"
+          disabled={syncBusy()}
+          onClick={() => runManualSync('SYNC_PUSH')}
+          style={`${actionBtnStyle} opacity: ${syncBusy() ? 0.6 : 1};`}
+        >
+          Upload
+        </button>
+        <button
+          type="button"
+          title="Download data from WebDAV"
+          disabled={syncBusy()}
+          onClick={() => runManualSync('SYNC_PULL')}
+          style={`${actionBtnStyle} opacity: ${syncBusy() ? 0.6 : 1};`}
+        >
+          Download
+        </button>
+        <button
+          type="button"
+          onClick={props.onOpenSettings}
+          title="Settings"
+          style={`${actionBtnStyle} color: var(--katab-color-accent);`}
+        >
+          Settings
+        </button>
+      </div>
     </header>
   )
 }

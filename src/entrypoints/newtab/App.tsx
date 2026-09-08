@@ -9,6 +9,7 @@ import CollectionBoard from '@/features/collections/components/CollectionBoard'
 import { collectionsStore } from '@/features/collections/store'
 import { loadCollections, useCollectionsStorageSync } from '@/features/collections/store'
 import NotePanel from '@/features/notes/components/NotePanel'
+import { loadNotes } from '@/features/notes/store'
 import type { Settings } from '@/features/settings/types'
 import ConflictBanner from '@/features/sync/components/ConflictBanner'
 import ConflictModal from '@/features/sync/components/ConflictModal'
@@ -54,6 +55,15 @@ const App: Component = () => {
       if (updated) applyTheme(updated.theme)
     })
     onCleanup(unwatch)
+
+    const onSyncApplied = (message: { type?: string }) => {
+      if (message?.type !== MessageType.SYNC_DATA_APPLIED) return
+      void loadBoards()
+      void loadCollections()
+      void loadNotes()
+    }
+    chrome.runtime.onMessage.addListener(onSyncApplied)
+    onCleanup(() => chrome.runtime.onMessage.removeListener(onSyncApplied))
   })
 
   async function handleOpenCollection(id: string) {

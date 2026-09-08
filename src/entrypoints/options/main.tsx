@@ -758,7 +758,7 @@ const OptionsApp: Component = () => {
                 <div style={`font-size: 12px; color: ${T.textPrimary};`}>{syncMessage()}</div>
               </Show>
 
-              <div style="display: flex; flex-wrap: gap: 10px;">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                 <button
                   type="button"
                   disabled={syncBusy()}
