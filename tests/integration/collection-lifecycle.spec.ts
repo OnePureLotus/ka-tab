@@ -12,13 +12,13 @@
  * IT-C-07  Full CRUD: create → rename → add site → remove site → delete
  */
 
-import { test, expect } from './fixtures'
+import { expect, test } from './fixtures'
 import {
-  waitForBoardReady,
-  createCollectionViaUI,
-  openCardMenu,
-  deleteCollection,
   addSiteViaUI,
+  createCollectionViaUI,
+  deleteCollection,
+  openCardMenu,
+  waitForBoardReady,
 } from './helpers'
 
 test.describe('IT-C: Collection Lifecycle', () => {
@@ -34,7 +34,6 @@ test.describe('IT-C: Collection Lifecycle', () => {
     await input.press('Enter')
     await expect(card).toContainText('Renamed Collection')
     await expect(card).not.toContainText('Original Name')
-
   })
 
   // IT-C-02: Add 3 sites, reload, all present
@@ -68,7 +67,12 @@ test.describe('IT-C: Collection Lifecycle', () => {
 
     await page.reload()
     await waitForBoardReady(page)
-    await expect(page.locator('[data-collection-id]').filter({ hasText: 'Persist Test' }).getByText('example.com')).toBeVisible()
+    await expect(
+      page
+        .locator('[data-collection-id]')
+        .filter({ hasText: 'Persist Test' })
+        .getByText('example.com'),
+    ).toBeVisible()
   })
 
   // IT-C-04: Delete middle collection — others remain
@@ -80,7 +84,9 @@ test.describe('IT-C: Collection Lifecycle', () => {
     const betaCard = page.locator('[data-collection-id]').filter({ hasText: 'Beta' })
     await deleteCollection(page, betaCard)
 
-    await expect(page.locator('[data-collection-id]').filter({ hasText: 'Beta' })).not.toBeVisible({ timeout: 5_000 })
+    await expect(page.locator('[data-collection-id]').filter({ hasText: 'Beta' })).not.toBeVisible({
+      timeout: 5_000,
+    })
     await expect(page.locator('[data-collection-id]').filter({ hasText: 'Alpha' })).toBeVisible()
     await expect(page.locator('[data-collection-id]').filter({ hasText: 'Gamma' })).toBeVisible()
   })
@@ -92,7 +98,7 @@ test.describe('IT-C: Collection Lifecycle', () => {
     await deleteCollection(page, card)
 
     await waitForBoardReady(page)
-    await expect(page.getByText('No collections yet')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('No collections in this board')).toBeVisible({ timeout: 5_000 })
   })
 
   // IT-C-06: Change color via context menu

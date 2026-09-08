@@ -1,9 +1,9 @@
-import type { Component } from 'solid-js'
-import { createSignal, createMemo, Show, For } from 'solid-js'
-import { Portal } from 'solid-js/web'
-import type { Collection } from '../types'
-import { validateSiteLimit } from '../service'
 import SiteFavicon from '@/shared/components/SiteFavicon'
+import type { Component } from 'solid-js'
+import { For, Show, createMemo, createSignal } from 'solid-js'
+import { Portal } from 'solid-js/web'
+import { validateSiteLimit } from '../service'
+import type { Collection } from '../types'
 
 interface CollectionCardProps {
   collection: Collection
@@ -129,7 +129,6 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
                 }
               }}
               style="flex: 1; font-weight: 600; font-size: 14px; border: 1px solid var(--katab-color-accent); border-radius: 4px; padding: 2px 6px; outline: none; background: var(--katab-color-surface); color: var(--katab-color-text-primary);"
-              // biome-ignore lint/a11y/noAutofocus: intentional focus for rename inline input
               autofocus
             />
           }
@@ -201,7 +200,9 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
               }}
             >
               <span
-                style={`width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;`}
+                style={
+                  'width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;'
+                }
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5" />

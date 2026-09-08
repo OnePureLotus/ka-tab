@@ -1,22 +1,58 @@
-import { storage } from 'wxt/utils/storage'
+import type { Board } from '@/features/boards/types'
 import type { Collection } from '@/features/collections/types'
 import type { Note } from '@/features/notes/types'
 import type { Settings } from '@/features/settings/types'
-import type { SyncMeta } from '@/features/sync/types'
 import { DEFAULT_SETTINGS } from '@/features/settings/types'
+import type { SyncMeta } from '@/features/sync/types'
+import { storage } from 'wxt/utils/storage'
 
 // Centralized storage key constants — prevents typos and enables refactoring
 export const STORAGE_KEYS = {
   META: 'sync:katab:meta',
+  BOARDS_INDEX: 'sync:katab:boards:index',
+  BOARD: (id: string) => `sync:katab:board:${id}` as const,
   COLLECTIONS_INDEX: 'sync:katab:collections:index',
   COLLECTION: (id: string) => `sync:katab:collection:${id}` as const,
   NOTES_INDEX: 'sync:katab:notes:index',
   NOTE: (id: string) => `sync:katab:note:${id}` as const,
   SETTINGS: 'sync:katab:settings',
   SYNC_META: 'local:katab:sync_meta',
+  MIGRATION_BOARDS_V1: 'local:katab:migration_v1_boards',
 } as const
 
 export { storage }
+
+// ─── Boards ──────────────────────────────────────────────────────────────────
+
+export async function getAllBoards(): Promise<Board[]> {
+  const index = (await storage.getItem<string[]>(STORAGE_KEYS.BOARDS_INDEX)) ?? []
+  if (index.length === 0) return []
+
+  const wxtKeys = index.map((id) => STORAGE_KEYS.BOARD(id))
+  const results = await storage.getItems(wxtKeys)
+  return results.map((r) => r.value as Board | null).filter((b): b is Board => b != null)
+}
+
+export async function getBoard(id: string): Promise<Board | null> {
+  return storage.getItem<Board>(STORAGE_KEYS.BOARD(id))
+}
+
+export async function setBoard(board: Board): Promise<void> {
+  const index = (await storage.getItem<string[]>(STORAGE_KEYS.BOARDS_INDEX)) ?? []
+  if (!index.includes(board.id)) {
+    await storage.setItem(STORAGE_KEYS.BOARDS_INDEX, [...index, board.id])
+  }
+  await storage.setItem(STORAGE_KEYS.BOARD(board.id), board)
+}
+
+export async function deleteBoard(id: string): Promise<void> {
+  const index = (await storage.getItem<string[]>(STORAGE_KEYS.BOARDS_INDEX)) ?? []
+  await storage.setItem(
+    STORAGE_KEYS.BOARDS_INDEX,
+    index.filter((i) => i !== id),
+  )
+  await storage.removeItem(STORAGE_KEYS.BOARD(id))
+}
 
 // ─── Collections ─────────────────────────────────────────────────────────────
 

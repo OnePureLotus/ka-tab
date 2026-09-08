@@ -1,22 +1,32 @@
-import { storage } from 'wxt/utils/storage'
+import type { Board } from '@/features/boards/types'
 import type { Collection } from '@/features/collections/types'
 import type { Note } from '@/features/notes/types'
 import type { Settings } from '@/features/settings/types'
+import { storage } from 'wxt/utils/storage'
 
 // ─── Storage change callback types ───────────────────────────────────────────
 
 export interface StorageUpdate {
-  type: 'collection' | 'collections-index' | 'note' | 'notes-index' | 'settings'
+  type:
+    | 'collection'
+    | 'collections-index'
+    | 'board'
+    | 'boards-index'
+    | 'note'
+    | 'notes-index'
+    | 'settings'
   key: string
-  newValue: Collection | Note | Settings | string[] | null
-  oldValue: Collection | Note | Settings | string[] | null
+  newValue: Collection | Board | Note | Settings | string[] | null
+  oldValue: Collection | Board | Note | Settings | string[] | null
 }
 
 export type StorageUpdateHandler = (update: StorageUpdate) => void
 
 const COLLECTION_KEY_PREFIX = 'sync:katab:collection:'
+const BOARD_KEY_PREFIX = 'sync:katab:board:'
 const NOTE_KEY_PREFIX = 'sync:katab:note:'
 const COLLECTIONS_INDEX_KEY = 'sync:katab:collections:index'
+const BOARDS_INDEX_KEY = 'sync:katab:boards:index'
 const NOTES_INDEX_KEY = 'sync:katab:notes:index'
 const SETTINGS_KEY = 'sync:katab:settings'
 
@@ -37,12 +47,26 @@ export function listenStorageChanges(onUpdate: StorageUpdateHandler): () => void
           newValue: (change.newValue as string[]) ?? null,
           oldValue: (change.oldValue as string[]) ?? null,
         })
+      } else if (key === BOARDS_INDEX_KEY) {
+        onUpdate({
+          type: 'boards-index',
+          key,
+          newValue: (change.newValue as string[]) ?? null,
+          oldValue: (change.oldValue as string[]) ?? null,
+        })
       } else if (key === NOTES_INDEX_KEY) {
         onUpdate({
           type: 'notes-index',
           key,
           newValue: (change.newValue as string[]) ?? null,
           oldValue: (change.oldValue as string[]) ?? null,
+        })
+      } else if (key.startsWith(BOARD_KEY_PREFIX)) {
+        onUpdate({
+          type: 'board',
+          key,
+          newValue: (change.newValue as Board) ?? null,
+          oldValue: (change.oldValue as Board) ?? null,
         })
       } else if (key.startsWith(COLLECTION_KEY_PREFIX)) {
         onUpdate({
@@ -76,6 +100,10 @@ export function listenStorageChanges(onUpdate: StorageUpdateHandler): () => void
 // WXT storage watch helpers for specific keys
 export function watchCollectionsIndex(cb: (ids: string[] | null) => void): () => void {
   return storage.watch<string[]>(COLLECTIONS_INDEX_KEY as `sync:${string}`, cb)
+}
+
+export function watchBoardsIndex(cb: (ids: string[] | null) => void): () => void {
+  return storage.watch<string[]>(BOARDS_INDEX_KEY as `sync:${string}`, cb)
 }
 
 export function watchNotesIndex(cb: (ids: string[] | null) => void): () => void {

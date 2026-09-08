@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
-import type { ConflictRecord } from './types'
 import { getSyncMeta, setSyncMeta } from './storage-sync'
+import type { ConflictRecord } from './types'
 
 const [conflicts, setConflicts] = createSignal<ConflictRecord[]>([])
 const [loading, setLoading] = createSignal(false)

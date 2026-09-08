@@ -32,7 +32,13 @@ export function showToast(
 ): void {
   const type = options?.type ?? 'info'
   const id = String(++idCounter)
-  const item: ToastItem = { id, type, title, body: options?.body, action: options?.action }
+  const item: ToastItem = {
+    id,
+    type,
+    title,
+    ...(options?.body !== undefined ? { body: options.body } : {}),
+    ...(options?.action !== undefined ? { action: options.action } : {}),
+  }
 
   // Cap visible toasts at 3 (remove oldest first)
   setToasts((prev) => {

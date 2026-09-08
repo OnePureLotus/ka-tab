@@ -13,31 +13,30 @@
  * IT-FT-07  Full onboarding: empty → collection → site → note → settings
  */
 
-import { test, expect } from './fixtures'
-import {
-  waitForBoardReady,
-  createCollectionViaUI,
-  openNotesPanel,
-  addSiteViaUI,
-} from './helpers'
+import { expect, test } from './fixtures'
+import { addSiteViaUI, createCollectionViaUI, openNotesPanel, waitForBoardReady } from './helpers'
 
 test.describe('IT-FT: First-Time User Flow', () => {
   // IT-FT-01: Fresh install shows empty board
   test('IT-FT-01: fresh install shows empty board and no notes', async ({ freshPage: page }) => {
     await waitForBoardReady(page)
-    await expect(page.getByText('No collections yet')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Create your first Collection' })).toBeVisible()
+    await expect(page.getByText('No collections in this board')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create Collection' }).first()).toBeVisible()
   })
 
   // IT-FT-02: First collection persists after page reload
   test('IT-FT-02: first collection persists after reload', async ({ freshPage: page }) => {
     await createCollectionViaUI(page, 'My First Collection')
-    await expect(page.locator('[data-collection-id]').filter({ hasText: 'My First Collection' })).toBeVisible()
+    await expect(
+      page.locator('[data-collection-id]').filter({ hasText: 'My First Collection' }),
+    ).toBeVisible()
 
     await page.reload()
     await waitForBoardReady(page)
-    await expect(page.locator('[data-collection-id]').filter({ hasText: 'My First Collection' })).toBeVisible()
-    await expect(page.getByText('No collections yet')).not.toBeVisible()
+    await expect(
+      page.locator('[data-collection-id]').filter({ hasText: 'My First Collection' }),
+    ).toBeVisible()
+    await expect(page.getByText('No collections in this board')).not.toBeVisible()
   })
 
   // IT-FT-03: Add site, reload, site still present
@@ -61,12 +60,16 @@ test.describe('IT-FT: First-Time User Flow', () => {
     const textarea = page.locator('.notes-panel textarea')
     await textarea.fill('Remember to deploy on Friday')
     await page.keyboard.press('Control+Enter')
-    await expect(page.locator('.notes-panel').getByText('Remember to deploy on Friday')).toBeVisible({ timeout: 5_000 })
+    await expect(
+      page.locator('.notes-panel').getByText('Remember to deploy on Friday'),
+    ).toBeVisible({ timeout: 5_000 })
 
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
     await openNotesPanel(page)
-    await expect(page.locator('.notes-panel').getByText('Remember to deploy on Friday')).toBeVisible()
+    await expect(
+      page.locator('.notes-panel').getByText('Remember to deploy on Friday'),
+    ).toBeVisible()
   })
 
   // IT-FT-05: Settings change (theme) persists via options page
@@ -84,7 +87,10 @@ test.describe('IT-FT: First-Time User Flow', () => {
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
     // Dark theme applied to root element
-    const htmlClass = await page.evaluate(() => document.documentElement.className + document.documentElement.getAttribute('data-theme'))
+    const htmlClass = await page.evaluate(
+      () =>
+        document.documentElement.className + document.documentElement.getAttribute('data-theme'),
+    )
     expect(htmlClass).toMatch(/dark/)
   })
 

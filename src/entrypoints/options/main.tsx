@@ -1,17 +1,20 @@
-import { render } from 'solid-js/web'
-import type { Component } from 'solid-js'
-import { createSignal, onMount, For, Show } from 'solid-js'
-import {
-  getSettings,
-  setSettings,
-  getAllCollections,
-  getAllNotes,
-  storage,
-  STORAGE_KEYS,
-} from '@/shared/storage/client'
+import { createBoard } from '@/features/boards/service'
+import type { Board } from '@/features/boards/types'
+import { DEFAULT_BOARD_NAME } from '@/features/boards/types'
+import type { Collection } from '@/features/collections/types'
 import type { Settings } from '@/features/settings/types'
 import { DEFAULT_SETTINGS } from '@/features/settings/types'
-import type { Collection } from '@/features/collections/types'
+import {
+  getAllBoards,
+  getAllCollections,
+  getAllNotes,
+  getSettings,
+  setBoard,
+  setSettings,
+} from '@/shared/storage/client'
+import type { Component } from 'solid-js'
+import { For, Show, createSignal, onMount } from 'solid-js'
+import { render } from 'solid-js/web'
 
 function applyTheme(theme: Settings['theme']) {
   const root = document.documentElement
@@ -127,11 +130,12 @@ const OptionsApp: Component = () => {
   }
 
   async function exportData() {
+    const boards = await getAllBoards()
     const cols = await getAllCollections()
     const s = await getSettings()
     const allNotes = await getAllNotes()
     const blob = new Blob(
-      [JSON.stringify({ collections: cols, notes: allNotes, settings: s }, null, 2)],
+      [JSON.stringify({ boards, collections: cols, notes: allNotes, settings: s }, null, 2)],
       { type: 'application/json' },
     )
     const url = URL.createObjectURL(blob)
@@ -151,15 +155,33 @@ const OptionsApp: Component = () => {
       if (!file) return
       try {
         const text = await file.text()
-        const data = JSON.parse(text) as { collections?: Collection[]; settings?: Settings }
+        const data = JSON.parse(text) as {
+          boards?: Board[]
+          collections?: Collection[]
+          settings?: Settings
+        }
         if (data.settings) {
           await setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
           const s = await getSettings()
           setLocalSettings(s)
         }
+        const { setCollection } = await import('@/shared/storage/client')
+        if (data.boards) {
+          for (const board of data.boards) await setBoard(board)
+        }
         if (data.collections) {
-          const { setCollection } = await import('@/shared/storage/client')
-          for (const col of data.collections) await setCollection(col)
+          if (!data.boards) {
+            const board = createBoard(
+              DEFAULT_BOARD_NAME,
+              data.collections.map((c) => c.id),
+            )
+            await setBoard(board)
+            for (const col of data.collections) {
+              await setCollection({ ...col, boardId: col.boardId ?? board.id })
+            }
+          } else {
+            for (const col of data.collections) await setCollection(col)
+          }
         }
         alert('Data imported successfully. Reload the new tab page.')
       } catch (err) {
@@ -239,7 +261,7 @@ const OptionsApp: Component = () => {
                     }}
                     style={`display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 14px; height: 42px; border: none; border-radius: 8px; cursor: pointer; text-align: left; font-size: 13px; background: ${isActive() ? T.chipBg : 'transparent'}; color: ${isActive() ? T.accent : T.textSecondary}; font-weight: ${isActive() ? '600' : '500'}; margin-bottom: 2px;`}
                   >
-                    <span style={`font-size: 11px; font-weight: 700; width: 22px; opacity: 0.6;`}>
+                    <span style={'font-size: 11px; font-weight: 700; width: 22px; opacity: 0.6;'}>
                       {item.prefix}
                     </span>
                     {item.label}
@@ -323,7 +345,7 @@ const OptionsApp: Component = () => {
                             setLocalSettings((s) => ({ ...s, accentColor: preset.value }))
                             save()
                           }}
-                          style={`display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 9px; border: 1px solid ${isActive() ? preset.value : T.border}; background: ${isActive() ? 'color-mix(in srgb, ' + preset.value + ' 12%, var(--katab-color-surface))' : T.surfaceSec}; cursor: pointer;`}
+                          style={`display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 9px; border: 1px solid ${isActive() ? preset.value : T.border}; background: ${isActive() ? `color-mix(in srgb, ${preset.value} 12%, var(--katab-color-surface))` : T.surfaceSec}; cursor: pointer;`}
                           title={`${preset.name} ${preset.value}`}
                         >
                           <div

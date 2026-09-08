@@ -1,8 +1,7 @@
-import type { Component } from 'solid-js'
-import { createSignal, Show } from 'solid-js'
-import type { Collection } from '../types'
-import Modal from '@/shared/components/Modal'
 import { mapToTabGroupColor } from '@/shared/color/tab-group-mapper'
+import Modal from '@/shared/components/Modal'
+import type { Component } from 'solid-js'
+import { createSignal } from 'solid-js'
 
 interface CreateCollectionModalProps {
   open: boolean
@@ -43,7 +42,6 @@ const CreateCollectionModal: Component<CreateCollectionModalProps> = (props) => 
               if (e.key === 'Enter') handleCreate()
             }}
             style="width: 100%; padding: 8px 12px; border: 1px solid var(--katab-color-border); border-radius: 8px; font-size: 14px; outline: none; background: var(--katab-color-surface); color: var(--katab-color-text-primary);"
-            // biome-ignore lint/a11y/noAutofocus: intentional focus for modal input
             autofocus
           />
         </div>
@@ -55,6 +53,7 @@ const CreateCollectionModal: Component<CreateCollectionModalProps> = (props) => 
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             {PRESET_COLORS.map((c) => (
               <button
+                key={c}
                 onClick={() => setColor(c)}
                 style={`width: 28px; height: 28px; border-radius: 50%; background: ${c}; border: 3px solid ${color() === c ? 'var(--katab-color-text-primary)' : 'transparent'}; cursor: pointer; padding: 0;`}
                 title={c}

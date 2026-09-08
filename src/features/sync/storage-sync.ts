@@ -1,5 +1,5 @@
-import { storage } from 'wxt/utils/storage'
 import { STORAGE_KEYS } from '@/shared/storage/client'
+import { storage } from 'wxt/utils/storage'
 import type { SyncMeta } from './types'
 
 export async function getSyncMeta(): Promise<SyncMeta | null> {

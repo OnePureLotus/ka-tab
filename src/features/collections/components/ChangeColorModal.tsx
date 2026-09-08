@@ -1,8 +1,8 @@
-import type { Component } from 'solid-js'
-import { createSignal, For, Show } from 'solid-js'
-import { Portal } from 'solid-js/web'
 import { settingsStore } from '@/features/settings/store'
 import { DEFAULT_COLOR_PALETTE } from '@/features/settings/types'
+import type { Component } from 'solid-js'
+import { For, Show, createSignal } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import type { Collection } from '../types'
 
 interface ChangeColorModalProps {
@@ -86,7 +86,13 @@ const ChangeColorModal: Component<ChangeColorModalProps> = (props) => {
                       <div
                         style={`width: 18px; height: 18px; border-radius: 9px; background: ${entry.color}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;`}
                       >
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <svg
+                          width="10"
+                          height="8"
+                          viewBox="0 0 10 8"
+                          fill="none"
+                          aria-hidden="true"
+                        >
                           <path
                             d="M1 4L3.5 6.5L9 1"
                             stroke="white"

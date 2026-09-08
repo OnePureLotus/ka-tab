@@ -14,6 +14,18 @@
 
 ## Features
 
+### 📋 Boards — Two-level organization
+
+Organize your workspace with **Boards** (top level) and **Collections** (second level). Switch between boards from the top bar to focus on different areas of your life — Work, Personal, Research, and more.
+
+- **Board switcher** — pill-style tabs in the top bar; click to switch the active board
+- **Board CRUD** — create, rename, and delete boards; move or delete collections when removing a board
+- **Scoped collections** — each board shows only its own Collection cards
+- **Global search** — search across all boards; clicking a site result switches to the correct board and opens the URL in a new tab
+- **Auto-migration** — existing Collections are moved into a default board on first load after upgrading
+
+---
+
 ### 📁 Collections — Organize sites into project boards
 
 Group related websites into named, color-coded boards called Collections.
@@ -61,7 +73,7 @@ The left sidebar shows every tab you have open right now, plus recently closed o
 
 ### 🔍 Search
 
-Search across all Collections, sites, and Notes from the top bar.
+Search across all Boards, Collections, sites, and Notes from the top bar. Clicking a site result switches to its board and opens the page in a new tab.
 
 ![Search in action](./docs/screenshots/search.png)
 
@@ -77,7 +89,7 @@ Configure color palettes for Collections, theme (light/dark), and data backup.
 
 ### ☁️ Cross-device sync
 
-All Collections and Notes sync automatically via `chrome.storage.sync`. If two devices edit the same data at the same time, a conflict resolution panel lets you choose which version to keep.
+All Boards, Collections, and Notes sync automatically via `chrome.storage.sync`. If two devices edit the same data at the same time, a conflict resolution panel lets you choose which version to keep.
 
 ---
 
@@ -135,6 +147,7 @@ src/
 │   ├── background/      # Service worker — message handlers
 │   └── options/         # Settings page
 ├── features/
+│   ├── boards/          # Board logic, switcher, migration
 │   ├── collections/     # Collection logic, cards, drag-drop
 │   ├── notes/           # Note panel and storage
 │   └── tab-tray/        # Current tabs & recently closed

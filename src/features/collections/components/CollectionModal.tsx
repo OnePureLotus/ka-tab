@@ -1,10 +1,10 @@
-import type { Component } from 'solid-js'
-import { createSignal, createMemo, Show, For } from 'solid-js'
-import type { Collection } from '../types'
 import Modal from '@/shared/components/Modal'
+import SiteFavicon from '@/shared/components/SiteFavicon'
+import type { Component } from 'solid-js'
+import { For, Show, createMemo, createSignal } from 'solid-js'
 import { removeSiteFromCollection, reorderSitesInCollection } from '../service'
 import { updateCollection } from '../store'
-import SiteFavicon from '@/shared/components/SiteFavicon'
+import type { Collection } from '../types'
 
 interface CollectionModalProps {
   open: boolean

@@ -1,3 +1,5 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 /**
  * Playwright fixtures for KaTab integration tests.
  *
@@ -8,9 +10,7 @@
  *  - `freshPage` is a helper that clears storage then opens newtab (test entry point).
  *  - `openOptionsPage` is a helper that opens options WITHOUT clearing storage.
  */
-import { test as base, chromium, type BrowserContext, type Page } from '@playwright/test'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { type BrowserContext, type Page, test as base, chromium } from '@playwright/test'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const extensionPath = path.resolve(__dirname, '../../.output/chrome-mv3')
@@ -27,37 +27,47 @@ export type IntegrationFixtures = {
 }
 
 export const test = base.extend<IntegrationFixtures>({
-  // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture signature
-  extContext: [async ({}, use) => {
-    const ctx = await chromium.launchPersistentContext('', {
-      // Empty string → fresh temp profile per worker; workers are fully isolated.
-      headless: false,
-      args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-        '--no-sandbox',
-        '--disable-dev-shm-usage',
-        '--headless=new',
-      ],
-    })
-    await use(ctx)
-    await ctx.close()
-  }, { scope: 'worker' }],
+  extContext: [
+    async (
+      // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture signature
+      {},
+      use,
+    ) => {
+      const ctx = await chromium.launchPersistentContext('', {
+        // Empty string → fresh temp profile per worker; workers are fully isolated.
+        headless: false,
+        args: [
+          `--disable-extensions-except=${extensionPath}`,
+          `--load-extension=${extensionPath}`,
+          '--no-sandbox',
+          '--disable-dev-shm-usage',
+          '--headless=new',
+        ],
+      })
+      await use(ctx)
+      await ctx.close()
+    },
+    { scope: 'worker' },
+  ],
 
-  // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture signature
-  extId: [async ({ extContext }, use) => {
-    let [background] = extContext.serviceWorkers()
-    if (!background) {
-      try {
-        background = await extContext.waitForEvent('serviceworker', { timeout: 15_000 })
-      } catch {
-        throw new Error('Failed to start extension service worker. Ensure Chromium channel is available and extension build exists at .output/chrome-mv3.')
+  extId: [
+    async ({ extContext }, use) => {
+      let [background] = extContext.serviceWorkers()
+      if (!background) {
+        try {
+          background = await extContext.waitForEvent('serviceworker', { timeout: 15_000 })
+        } catch {
+          throw new Error(
+            'Failed to start extension service worker. Ensure Chromium channel is available and extension build exists at .output/chrome-mv3.',
+          )
+        }
       }
-    }
-    const extId = background.url().split('/')[2]
-    if (!extId) throw new Error('Failed to parse extension id from service worker URL.')
-    await use(extId)
-  }, { scope: 'worker' }],
+      const extId = background.url().split('/')[2]
+      if (!extId) throw new Error('Failed to parse extension id from service worker URL.')
+      await use(extId)
+    },
+    { scope: 'worker' },
+  ],
 
   freshPage: async ({ extContext, extId }, use) => {
     const page = await extContext.newPage()

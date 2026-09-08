@@ -1,13 +1,13 @@
-import type { Component } from 'solid-js'
-import { createSignal, Show, createMemo } from 'solid-js'
-import { Portal } from 'solid-js/web'
-import type { Collection } from '../types'
-import { addSiteToCollection, validateSiteLimit } from '../service'
-import { updateCollection } from '../store'
+import SiteFavicon from '@/shared/components/SiteFavicon'
 import { sendCommand } from '@/shared/messaging/client'
 import { MessageType } from '@/shared/messaging/types'
-import SiteFavicon from '@/shared/components/SiteFavicon'
 import { showToast } from '@/shared/toast'
+import type { Component } from 'solid-js'
+import { Show, createMemo, createSignal } from 'solid-js'
+import { Portal } from 'solid-js/web'
+import { addSiteToCollection, validateSiteLimit } from '../service'
+import { updateCollection } from '../store'
+import type { Collection } from '../types'
 
 interface AddSiteDialogProps {
   collection: Collection
@@ -180,7 +180,6 @@ const AddSiteDialog: Component<AddSiteDialogProps> = (props) => {
                     setTabFavicon('')
                     setError('')
                   }}
-                  // biome-ignore lint/a11y/noAutofocus: intentional for dialog UX
                   autofocus
                   style="width: 100%; height: 42px; padding: 0 148px 0 14px; border: 1px solid var(--katab-color-border); border-radius: 8px; font-size: 13px; background: var(--katab-color-surface-secondary); color: var(--katab-color-text-primary); outline: none; box-sizing: border-box; transition: border-color 150ms;"
                   onFocusIn={(e) => {

@@ -1,17 +1,33 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { produce } from 'solid-js/store'
+import { createBoard } from '@/features/boards/service'
 import { createCollection } from '@/features/collections/service'
+import { produce } from 'solid-js/store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock the entire storage client so tests don't touch real storage
+const BOARD_ID = 'test-board-id'
+const TEST_BOARD = createBoard('Test Board', [])
+
 vi.mock('@/shared/storage/client', () => ({
   getAllCollections: vi.fn(),
   setCollection: vi.fn(),
   deleteCollection: vi.fn(),
-  STORAGE_KEYS: { COLLECTIONS_INDEX: 'sync:katab:collections:index' },
-  storage: { setItem: vi.fn() },
+  getBoard: vi.fn(),
+  setBoard: vi.fn(),
+  STORAGE_KEYS: {
+    COLLECTIONS_INDEX: 'sync:katab:collections:index',
+    BOARDS_INDEX: 'sync:katab:boards:index',
+  },
+  storage: { setItem: vi.fn(), getItem: vi.fn() },
 }))
 
-// Import store AFTER mocking to ensure the mock is in place
+vi.mock('@/features/boards/store', () => ({
+  boardsStore: {
+    items: [{ id: BOARD_ID, name: 'Test Board', collectionIds: [], createdAt: 0, updatedAt: 0 }],
+  },
+  attachCollectionToBoard: vi.fn().mockResolvedValue(undefined),
+  detachCollectionFromBoard: vi.fn().mockResolvedValue(undefined),
+  updateBoard: vi.fn().mockResolvedValue(undefined),
+}))
+
 const {
   collectionsStore,
   setCollectionsStore,
@@ -26,6 +42,8 @@ const {
   getAllCollections: mockGetAll,
   setCollection: mockSet,
   deleteCollection: mockDelete,
+  getBoard: mockGetBoard,
+  setBoard: mockSetBoard,
 } = await import('@/shared/storage/client')
 
 function resetStore() {
@@ -38,26 +56,32 @@ function resetStore() {
   )
 }
 
+function makeCol(name: string, color = '#1a73e8') {
+  return createCollection(name, color, BOARD_ID)
+}
+
 beforeEach(() => {
   resetStore()
   vi.clearAllMocks()
+  vi.mocked(mockGetBoard).mockResolvedValue({ ...TEST_BOARD, collectionIds: [] })
+  vi.mocked(mockSetBoard).mockResolvedValue(undefined)
 })
 
 describe('addCollection (ST-01)', () => {
   it('ST-01: addCollection 后 items 长度 +1', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
-    const col = createCollection('Work', '#1a73e8')
+    const col = makeCol('Work')
     await addCollection(col)
     expect(collectionsStore.items).toHaveLength(1)
-    expect(collectionsStore.items[0]!.id).toBe(col.id)
+    expect(collectionsStore.items[0]?.id).toBe(col.id)
   })
 })
 
 describe('updateCollection (ST-02 / ST-03)', () => {
   it('ST-02: updateCollection 更新目标 item，其他 item 不变', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
-    const col1 = createCollection('A', '#1a73e8')
-    const col2 = createCollection('B', '#d93025')
+    const col1 = makeCol('A')
+    const col2 = makeCol('B', '#d93025')
     await addCollection(col1)
     await addCollection(col2)
 
@@ -70,7 +94,7 @@ describe('updateCollection (ST-02 / ST-03)', () => {
 
   it('ST-03: updateCollection 传入不存在的 id 不崩溃', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
-    const ghost = createCollection('Ghost', '#1a73e8')
+    const ghost = makeCol('Ghost')
     await expect(updateCollection(ghost)).resolves.not.toThrow()
     expect(collectionsStore.items).toHaveLength(0)
   })
@@ -80,7 +104,7 @@ describe('removeCollection (ST-04 / C-16 to C-20)', () => {
   it('ST-04 / C-16: removeCollection 从 items 删除对应 id', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
     vi.mocked(mockDelete).mockResolvedValue(undefined)
-    const col = createCollection('Work', '#1a73e8')
+    const col = makeCol('Work')
     await addCollection(col)
     await removeCollection(col.id)
     expect(collectionsStore.items.find((c) => c.id === col.id)).toBeUndefined()
@@ -94,8 +118,8 @@ describe('removeCollection (ST-04 / C-16 to C-20)', () => {
   it('C-18: 删除后 store 长度 -1', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
     vi.mocked(mockDelete).mockResolvedValue(undefined)
-    const col1 = createCollection('A', '#1a73e8')
-    const col2 = createCollection('B', '#d93025')
+    const col1 = makeCol('A')
+    const col2 = makeCol('B', '#d93025')
     await addCollection(col1)
     await addCollection(col2)
     await removeCollection(col1.id)
@@ -105,7 +129,7 @@ describe('removeCollection (ST-04 / C-16 to C-20)', () => {
   it('C-20: 删除含网站的 Collection 整体一并移除', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
     vi.mocked(mockDelete).mockResolvedValue(undefined)
-    const col = createCollection('WithSites', '#1a73e8')
+    const col = makeCol('WithSites')
     await addCollection(col)
     await removeCollection(col.id)
     expect(collectionsStore.items).toHaveLength(0)
@@ -129,18 +153,24 @@ describe('loadCollections (ST-05 / ST-06)', () => {
 
 describe('reorderCollectionsInStore (ST-07 / C-31)', () => {
   it('ST-07 / C-31: reorderCollectionsInStore 更新 store 顺序', async () => {
-    const { storage } = await import('@/shared/storage/client')
-    vi.mocked(storage.setItem).mockResolvedValue(undefined)
+    vi.mocked(mockGetAll).mockResolvedValue([])
     vi.mocked(mockSet).mockResolvedValue(undefined)
 
-    const col1 = createCollection('A', '#1a73e8')
-    const col2 = createCollection('B', '#d93025')
-    const col3 = createCollection('C', '#188038')
+    const col1 = makeCol('A')
+    const col2 = makeCol('B', '#d93025')
+    const col3 = makeCol('C', '#188038')
     await addCollection(col1)
     await addCollection(col2)
     await addCollection(col3)
 
-    await reorderCollectionsInStore([col2, col3, col1])
-    expect(collectionsStore.items.map((c) => c.name)).toEqual(['B', 'C', 'A'])
+    vi.mocked(mockGetBoard).mockResolvedValue({
+      ...TEST_BOARD,
+      collectionIds: [col1.id, col2.id, col3.id],
+    })
+
+    await reorderCollectionsInStore(BOARD_ID, [col2, col3, col1])
+    expect(mockSetBoard).toHaveBeenCalledWith(
+      expect.objectContaining({ collectionIds: [col2.id, col3.id, col1.id] }),
+    )
   })
 })

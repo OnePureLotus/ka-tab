@@ -1,37 +1,39 @@
-import type { Component } from 'solid-js'
-import { createSignal, Show, For, onMount, createMemo, createEffect } from 'solid-js'
+import BoardSwitcher from '@/features/boards/components/BoardSwitcher'
+import { boardsStore } from '@/features/boards/store'
+import Skeleton from '@/shared/components/Skeleton'
+import { showToast } from '@/shared/toast'
 import {
   DragDropProvider,
   DragDropSensors,
   DragOverlay,
-  SortableProvider,
-  createSortable,
-  closestCenter,
-  maybeTransformStyle,
   type DragEvent as SolidDnDEvent,
+  SortableProvider,
+  closestCenter,
+  createSortable,
+  maybeTransformStyle,
 } from '@thisbeyond/solid-dnd'
-import type { Collection } from '../types'
-import { collectionsStore } from '../store'
+import type { Component } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
 import {
-  loadCollections,
-  addCollection,
-  updateCollection,
-  removeCollection,
-  reorderCollectionsInStore,
-} from '../store'
-import {
+  addSiteToCollection,
   createCollection,
   renameCollection,
   updateCollectionColor,
-  addSiteToCollection,
 } from '../service'
-import CollectionCard from './CollectionCard'
-import CreateCollectionModal from './CreateCollectionModal'
+import { collectionsStore } from '../store'
+import {
+  addCollection,
+  getCollectionsForBoard,
+  removeCollection,
+  reorderCollectionsInStore,
+  updateCollection,
+} from '../store'
+import type { Collection } from '../types'
 import AddSiteDialog from './AddSiteDialog'
-import CollectionModal from './CollectionModal'
 import ChangeColorModal from './ChangeColorModal'
-import { showToast } from '@/shared/toast'
-import Skeleton from '@/shared/components/Skeleton'
+import CollectionCard from './CollectionCard'
+import CollectionModal from './CollectionModal'
+import CreateCollectionModal from './CreateCollectionModal'
 
 // ─── Sortable card wrapper ────────────────────────────────────────────────────
 
@@ -77,7 +79,9 @@ const SortableCard: Component<SortableCardProps> = (props) => {
 // ─── Main Board ───────────────────────────────────────────────────────────────
 
 interface CollectionBoardProps {
+  activeBoardId: string | null
   onOpenCollection: (id: string) => void
+  onSwitchBoard?: (boardId: string) => void
   triggerCreate?: number
   searchQuery?: string
 }
@@ -88,33 +92,41 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   const [colorChangeFor, setColorChangeFor] = createSignal<string | null>(null)
   const [modalCollectionId, setModalCollectionId] = createSignal<string | null>(null)
 
-  onMount(() => {
-    loadCollections()
-  })
-
-  // Watch for external triggerCreate signal
   createEffect(() => {
     const trigger = props.triggerCreate
     if (trigger && trigger > 0) setShowCreate(true)
   })
 
-  const sortableIds = createMemo(() => collectionsStore.items.map((c) => c.id))
+  const boardCollections = createMemo(() => {
+    const boardId = props.activeBoardId
+    if (!boardId) return []
+    return getCollectionsForBoard(boardId)
+  })
+
+  const sortableIds = createMemo(() => boardCollections().map((c) => c.id))
 
   const filteredCollections = createMemo(() => {
     const q = (props.searchQuery ?? '').toLowerCase().trim()
-    if (!q) return collectionsStore.items
-    return collectionsStore.items.filter(
+    const items = boardCollections()
+    if (!q) return items
+    return items.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.sites.some((s) => s.title.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)),
     )
   })
+
   const modalCollection = createMemo(
     () => collectionsStore.items.find((c) => c.id === modalCollectionId()) ?? null,
   )
 
   async function handleCreate(name: string, color: string) {
-    const collection = createCollection(name, color)
+    const boardId = props.activeBoardId
+    if (!boardId) {
+      showToast('No board selected', { type: 'error' })
+      return
+    }
+    const collection = createCollection(name, color, boardId)
     await addCollection(collection)
   }
 
@@ -143,7 +155,8 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this collection?')) return
-    await removeCollection(id)
+    const col = collectionsStore.items.find((c) => c.id === id)
+    await removeCollection(id, col?.boardId)
   }
 
   async function handleTabDrop(collectionId: string, url: string, title: string, favicon: string) {
@@ -166,8 +179,9 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleDragEnd({ draggable, droppable }: SolidDnDEvent) {
-    if (!draggable || !droppable || draggable.id === droppable.id) return
-    const items = collectionsStore.items
+    const boardId = props.activeBoardId
+    if (!boardId || !draggable || !droppable || draggable.id === droppable.id) return
+    const items = boardCollections()
     const from = items.findIndex((c) => c.id === draggable.id)
     const to = items.findIndex((c) => c.id === droppable.id)
     if (from === -1 || to === -1) return
@@ -176,31 +190,37 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     const reordered = [...items]
     reordered.splice(from, 1)
     reordered.splice(to, 0, item)
-    await reorderCollectionsInStore(reordered)
+    await reorderCollectionsInStore(boardId, reordered)
   }
+
+  const isLoading = () => collectionsStore.loading || boardsStore.loading
+  const hasBoard = () => props.activeBoardId != null && boardsStore.items.length > 0
+  const isBoardEmpty = () => hasBoard() && boardCollections().length === 0
 
   return (
     <div style="padding: 24px; height: 100%; overflow-y: auto; box-sizing: border-box;">
+      <BoardSwitcher {...(props.onSwitchBoard ? { onBoardChange: props.onSwitchBoard } : {})} />
+
       {/* Section header */}
       <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap;">
         <div style="flex: 1;">
-          <h1 style="font-size: 28px; font-weight: 700; color: var(--katab-color-text-primary); margin: 0 0 4px; line-height: 1.2;">
+          <h1 style="font-size: 22px; font-weight: 700; color: var(--katab-color-text-primary); margin: 0 0 4px; line-height: 1.2;">
             Collections
           </h1>
           <p style="font-size: 14px; color: var(--katab-color-text-secondary); margin: 0;">
-            Drop tabs from the left tray into project boards.
+            Drop tabs from the left tray into collections.
           </p>
         </div>
         <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
           <span style="font-size: 13px; font-weight: 500; padding: 4px 12px; background: var(--katab-color-chip-bg); color: var(--katab-color-chip-text); border-radius: 20px;">
-            {collectionsStore.items.length} collection
-            {collectionsStore.items.length !== 1 ? 's' : ''}
+            {boardCollections().length} collection
+            {boardCollections().length !== 1 ? 's' : ''}
           </span>
         </div>
       </div>
 
       {/* Loading skeleton */}
-      <Show when={collectionsStore.loading}>
+      <Show when={isLoading()}>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
           <For each={[1, 2, 3]}>
             {() => (
@@ -215,12 +235,25 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
         </div>
       </Show>
 
-      {/* Empty state */}
-      <Show when={!collectionsStore.loading && collectionsStore.items.length === 0}>
+      {/* No board */}
+      <Show when={!isLoading() && !hasBoard()}>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--katab-color-text-secondary); text-align: center; padding: 60px 0;">
+          <div style="font-size: 48px;">📋</div>
+          <div style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
+            No boards yet
+          </div>
+          <div style="font-size: 14px; max-width: 300px;">
+            Create a board using the switcher above to organize your collections.
+          </div>
+        </div>
+      </Show>
+
+      {/* Empty board */}
+      <Show when={!isLoading() && isBoardEmpty()}>
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--katab-color-text-secondary); text-align: center; padding: 60px 0;">
           <div style="font-size: 48px;">📚</div>
           <div style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
-            No collections yet
+            No collections in this board
           </div>
           <div style="font-size: 14px; max-width: 300px;">
             Organize your favorite sites into collections and open them as tab groups.
@@ -229,13 +262,13 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
             onClick={() => setShowCreate(true)}
             style="padding: 10px 24px; border: none; border-radius: 8px; background: var(--katab-color-accent); color: #fff; cursor: pointer; font-size: 14px; font-weight: 500;"
           >
-            Create your first Collection
+            Create Collection
           </button>
         </div>
       </Show>
 
       {/* Collections grid */}
-      <Show when={!collectionsStore.loading && collectionsStore.items.length > 0}>
+      <Show when={!isLoading() && hasBoard() && boardCollections().length > 0}>
         <DragDropProvider
           collisionDetector={closestCenter}
           onDragStart={handleDragStart}
@@ -261,7 +294,6 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
                   )}
                 </For>
 
-                {/* Create Collection placeholder card */}
                 <button
                   onClick={() => setShowCreate(true)}
                   style="border: 1px solid var(--katab-color-border); border-radius: 8px; background: var(--katab-color-surface); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; min-height: 268px; transition: border-color 150ms, box-shadow 150ms;"
@@ -295,9 +327,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
 
           <DragOverlay>
             {(draggable) => {
-              const col = draggable
-                ? collectionsStore.items.find((c) => c.id === draggable.id)
-                : null
+              const col = draggable ? boardCollections().find((c) => c.id === draggable.id) : null
               return col ? (
                 <div style="opacity: 0.85; transform: scale(1.03); pointer-events: none;">
                   <CollectionCard
@@ -315,7 +345,6 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
           </DragOverlay>
         </DragDropProvider>
 
-        {/* Add Site Dialog */}
         <Show
           when={addSiteFor() !== null && collectionsStore.items.find((c) => c.id === addSiteFor())}
         >
@@ -325,7 +354,6 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
           />
         </Show>
 
-        {/* Change Color Modal */}
         <Show
           when={
             colorChangeFor() !== null &&
@@ -342,7 +370,6 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
         </Show>
       </Show>
 
-      {/* Modals */}
       <CreateCollectionModal
         open={showCreate()}
         onClose={() => setShowCreate(false)}

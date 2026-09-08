@@ -9,7 +9,8 @@
       "recommended": true,
       "correctness": {
         "noUnusedVariables": "error",
-        "noUnusedImports": "error"
+        "noUnusedImports": "error",
+        "noEmptyPattern": "warn"
       },
       "style": {
         "noNonNullAssertion": "warn",
@@ -17,6 +18,9 @@
       },
       "suspicious": {
         "noExplicitAny": "warn"
+      },
+      "a11y": {
+        "recommended": false
       }
     }
   },

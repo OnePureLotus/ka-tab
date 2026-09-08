@@ -14,6 +14,18 @@
 
 ## 功能介绍
 
+### 📋 看板（Board）— 两级分类
+
+用 **看板（Board）** 作为顶层分类，**Collection** 作为二级目录，满足更细粒度的项目组织需求。在顶栏切换看板，即可查看该看板下的所有 Collection。
+
+- **顶栏切换** — 药丸式 Tab 列表，点击切换当前看板
+- **看板 CRUD** — 支持新建、重命名、删除看板；删除时可选择迁移或一并删除下属 Collection
+- **按看板隔离** — 中间区域仅显示当前看板下的 Collection 卡片
+- **全局搜索** — 搜索覆盖所有看板；点击站点结果会自动切换到对应看板并在新标签页打开网址
+- **自动迁移** — 升级后首次加载时，现有 Collection 会自动归入默认看板
+
+---
+
 ### 📁 Collection — 将网站整理成项目看板
 
 把相关网站归入一个命名、带颜色的 Collection。
@@ -61,7 +73,7 @@
 
 ### 🔍 搜索
 
-在顶栏搜索框中模糊搜索所有 Collection、网站和 Note。
+在顶栏搜索框中模糊搜索所有看板、Collection、网站和 Note。点击站点结果会切换到对应看板并在新标签页打开网页。
 
 ![搜索功能](./docs/screenshots/search.png)
 
@@ -77,7 +89,7 @@
 
 ### ☁️ 跨设备同步
 
-所有 Collection 和 Note 数据通过 `chrome.storage.sync` 自动同步。若两台设备同时编辑同一数据，冲突解决面板允许你手动选择保留哪个版本。
+所有看板、Collection 和 Note 数据通过 `chrome.storage.sync` 自动同步。若两台设备同时编辑同一数据，冲突解决面板允许你手动选择保留哪个版本。
 
 ---
 
@@ -135,6 +147,7 @@ src/
 │   ├── background/      # Service Worker — 消息处理
 │   └── options/         # 设置页
 ├── features/
+│   ├── boards/          # 看板逻辑、切换器、数据迁移
 │   ├── collections/     # Collection 逻辑、卡片、拖拽
 │   ├── notes/           # Note 面板与存储
 │   └── tab-tray/        # 当前标签页 & 最近关闭

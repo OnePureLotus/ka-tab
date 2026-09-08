@@ -1,12 +1,14 @@
-import type { Component } from 'solid-js'
-import { createSignal, createMemo, Show, For, onMount, onCleanup } from 'solid-js'
+import { boardsStore } from '@/features/boards/store'
 import { collectionsStore } from '@/features/collections/store'
 import { notesStore } from '@/features/notes/store'
+import type { Component } from 'solid-js'
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 
 interface TopBarProps {
   onAddCollection?: () => void
   onOpenSettings?: () => void
   onSearch?: (query: string) => void
+  onSwitchBoard?: (boardId: string) => void
 }
 
 interface SearchResult {
@@ -15,6 +17,8 @@ interface SearchResult {
   label: string
   sub?: string
   collectionId?: string
+  boardId?: string
+  url?: string
 }
 
 const TopBar: Component<TopBarProps> = (props) => {
@@ -31,6 +35,10 @@ const TopBar: Component<TopBarProps> = (props) => {
     onCleanup(() => mq.removeEventListener('change', handler))
   })
 
+  function getBoardName(boardId: string): string {
+    return boardsStore.items.find((b) => b.id === boardId)?.name ?? ''
+  }
+
   const results = createMemo<SearchResult[]>(() => {
     const q = query().toLowerCase().trim()
     if (!q) return []
@@ -38,12 +46,14 @@ const TopBar: Component<TopBarProps> = (props) => {
     const out: SearchResult[] = []
 
     for (const col of collectionsStore.items) {
+      const boardName = getBoardName(col.boardId)
       if (col.name.toLowerCase().includes(q)) {
         out.push({
           type: 'collection',
           id: col.id,
           label: col.name,
-          sub: `${col.sites.length} sites`,
+          sub: boardName ? `${boardName} · ${col.sites.length} sites` : `${col.sites.length} sites`,
+          boardId: col.boardId,
         })
       }
       for (const site of col.sites) {
@@ -52,8 +62,10 @@ const TopBar: Component<TopBarProps> = (props) => {
             type: 'site',
             id: site.id,
             label: site.title,
-            sub: col.name,
+            sub: boardName ? `${boardName} · ${col.name}` : col.name,
             collectionId: col.id,
+            boardId: col.boardId,
+            url: site.url,
           })
         }
       }
@@ -83,11 +95,14 @@ const TopBar: Component<TopBarProps> = (props) => {
   function handleResultClick(result: SearchResult) {
     setDropdownOpen(false)
     setQuery('')
-    if (result.type === 'site') {
-      window.open(
-        collectionsStore.items.flatMap((c) => c.sites).find((s) => s.id === result.id)?.url ?? '',
-        '_blank',
-      )
+    props.onSearch?.('')
+
+    if (result.boardId) {
+      props.onSwitchBoard?.(result.boardId)
+    }
+
+    if (result.type === 'site' && result.url) {
+      window.open(result.url, '_blank')
     }
   }
 
@@ -127,7 +142,6 @@ const TopBar: Component<TopBarProps> = (props) => {
           }}
         />
 
-        {/* Dropdown */}
         <Show when={dropdownOpen() && results().length > 0}>
           <div style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--katab-color-surface); border: 1px solid var(--katab-color-border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); overflow: hidden; z-index: 100;">
             <For each={results()}>
@@ -163,14 +177,12 @@ const TopBar: Component<TopBarProps> = (props) => {
 
       <div style="flex: 1;" />
 
-      {/* System theme chip */}
       <div
         style={`padding: 0 10px; height: 24px; display: flex; align-items: center; justify-content: center; background: ${isDark() ? '#123c34' : '#ecfdf5'}; border-radius: 12px; font-size: 11px; font-weight: 500; color: ${isDark() ? '#34d399' : '#047857'}; flex-shrink: 0; white-space: nowrap;`}
       >
         {isDark() ? 'System: Dark' : 'System: Light'}
       </div>
 
-      {/* Settings button */}
       <button
         onClick={props.onOpenSettings}
         title="Settings"

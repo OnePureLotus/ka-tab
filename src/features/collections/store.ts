@@ -1,11 +1,20 @@
-import { createStore, produce } from 'solid-js/store'
-import { onMount, onCleanup } from 'solid-js'
-import type { Collection } from './types'
+import { setBoardCollectionIds } from '@/features/boards/service'
+import {
+  attachCollectionToBoard,
+  boardsStore,
+  detachCollectionFromBoard,
+  updateBoard,
+} from '@/features/boards/store'
+import { watchCollectionsIndex } from '@/shared/messaging/storage-sync'
 import {
   getAllCollections,
   setCollection as persistCollection,
   deleteCollection as removeFromStorage,
 } from '@/shared/storage/client'
+import { getBoard, setBoard } from '@/shared/storage/client'
+import { onCleanup, onMount } from 'solid-js'
+import { createStore, produce } from 'solid-js/store'
+import type { Collection } from './types'
 
 export interface CollectionsState {
   items: Collection[]
@@ -45,8 +54,19 @@ export async function loadCollections(): Promise<void> {
   }
 }
 
+export function getCollectionsForBoard(boardId: string): Collection[] {
+  const board = boardsStore.items.find((b) => b.id === boardId)
+  if (!board) return []
+
+  const byId = new Map(collectionsStore.items.map((c) => [c.id, c]))
+  return board.collectionIds
+    .map((id) => byId.get(id))
+    .filter((c): c is Collection => c != null && c.boardId === boardId)
+}
+
 export async function addCollection(collection: Collection): Promise<void> {
   await persistCollection(collection)
+  await attachCollectionToBoard(collection.boardId, collection.id)
   setCollectionsStore(
     produce((s) => {
       s.items.push(collection)
@@ -64,8 +84,13 @@ export async function updateCollection(collection: Collection): Promise<void> {
   )
 }
 
-export async function removeCollection(id: string): Promise<void> {
+export async function removeCollection(id: string, boardId?: string): Promise<void> {
+  const col = collectionsStore.items.find((c) => c.id === id)
+  const resolvedBoardId = boardId ?? col?.boardId
   await removeFromStorage(id)
+  if (resolvedBoardId) {
+    await detachCollectionFromBoard(resolvedBoardId, id)
+  }
   setCollectionsStore(
     produce((s) => {
       s.items = s.items.filter((c) => c.id !== id)
@@ -73,12 +98,30 @@ export async function removeCollection(id: string): Promise<void> {
   )
 }
 
-export async function reorderCollectionsInStore(newOrder: Collection[]): Promise<void> {
-  // Persist each in the new order by updating the index
-  const { STORAGE_KEYS, storage } = await import('@/shared/storage/client')
-  await storage.setItem(
-    STORAGE_KEYS.COLLECTIONS_INDEX,
+export async function reorderCollectionsInStore(
+  boardId: string,
+  newOrder: Collection[],
+): Promise<void> {
+  const board = await getBoard(boardId)
+  if (!board) return
+
+  const updatedBoard = setBoardCollectionIds(
+    board,
     newOrder.map((c) => c.id),
   )
-  setCollectionsStore('items', newOrder)
+  await setBoard(updatedBoard)
+  await updateBoard(updatedBoard)
+}
+
+export function subscribeCollectionsStorage(): () => void {
+  return watchCollectionsIndex(() => {
+    loadCollections()
+  })
+}
+
+export function useCollectionsStorageSync(): void {
+  onMount(() => {
+    const unwatch = subscribeCollectionsStorage()
+    onCleanup(unwatch)
+  })
 }

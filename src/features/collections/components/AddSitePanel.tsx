@@ -1,11 +1,11 @@
-import type { Component } from 'solid-js'
-import { createSignal, createMemo, Show } from 'solid-js'
-import type { Collection } from '../types'
-import { addSiteToCollection, validateSiteLimit } from '../service'
-import { updateCollection } from '../store'
 import { sendCommand } from '@/shared/messaging/client'
 import { MessageType } from '@/shared/messaging/types'
 import { showToast } from '@/shared/toast'
+import type { Component } from 'solid-js'
+import { Show, createMemo, createSignal } from 'solid-js'
+import { addSiteToCollection, validateSiteLimit } from '../service'
+import { updateCollection } from '../store'
+import type { Collection } from '../types'
 
 interface AddSitePanelProps {
   collection: Collection
@@ -118,7 +118,6 @@ const AddSitePanel: Component<AddSitePanelProps> = (props) => {
             setError('')
           }}
           style="flex: 1; padding: 8px 10px; border: 1px solid var(--katab-color-border); border-radius: 6px; font-size: 13px; outline: none; background: var(--katab-color-surface); color: var(--katab-color-text-primary);"
-          // biome-ignore lint/a11y/noAutofocus: intentional focus for add site input
           autofocus
         />
         <button

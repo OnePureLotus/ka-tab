@@ -2,31 +2,37 @@
  * Shared helpers for KaTab integration tests.
  * Builds on the same patterns as e2e/helpers.ts but adds multi-step utilities.
  */
-import type { Page, Locator } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 // ─── Board readiness ──────────────────────────────────────────────────────────
 
 export async function waitForBoardReady(page: Page) {
-  await page.waitForFunction(() => {
-    const panel = document.querySelector('.collections-panel')
-    if (!panel) return false
-    return (
-      panel.textContent?.includes('No collections yet') ||
-      panel.querySelector('[data-collection-id]') !== null ||
-      panel.textContent?.includes('Create Collection') === true
-    )
-  }, { timeout: 10_000 })
+  await page.waitForFunction(
+    () => {
+      const panel = document.querySelector('.collections-panel')
+      if (!panel) return false
+      return (
+        panel.textContent?.includes('No collections in this board') ||
+        panel.querySelector('[data-collection-id]') !== null ||
+        panel.textContent?.includes('Create Collection') === true
+      )
+    },
+    { timeout: 10_000 },
+  )
 }
 
 // ─── Collections ──────────────────────────────────────────────────────────────
 
 export async function openCreateModal(page: Page) {
   await waitForBoardReady(page)
-  const emptyBtn = page.getByRole('button', { name: 'Create your first Collection' })
+  const emptyBtn = page.getByRole('button', { name: 'Create Collection' }).first()
   if (await emptyBtn.isVisible()) {
     await emptyBtn.click()
   } else {
-    await page.locator('.collections-panel').getByRole('button', { name: 'Create Collection' }).click()
+    await page
+      .locator('.collections-panel')
+      .getByRole('button', { name: 'Create Collection' })
+      .click()
   }
   await page.getByText('New Collection').waitFor({ state: 'visible' })
 }
@@ -70,7 +76,9 @@ export async function addSiteViaUI(page: Page, card: Locator, url: string) {
   // Click the "Add site" button in modal
   await page.getByRole('button', { name: /^Add site$/ }).click()
   // Wait for modal to close
-  await page.getByPlaceholder('https://platform.openai.com/docs').waitFor({ state: 'hidden', timeout: 5_000 })
+  await page
+    .getByPlaceholder('https://platform.openai.com/docs')
+    .waitFor({ state: 'hidden', timeout: 5_000 })
 }
 
 // ─── Notes ────────────────────────────────────────────────────────────────────
@@ -78,7 +86,10 @@ export async function addSiteViaUI(page: Page, card: Locator, url: string) {
 export async function openNotesPanel(page: Page) {
   const panel = page.locator('.notes-panel')
   if (!(await panel.isVisible())) {
-    await page.getByTitle(/notes/i).or(page.getByRole('button', { name: /notes/i })).click()
+    await page
+      .getByTitle(/notes/i)
+      .or(page.getByRole('button', { name: /notes/i }))
+      .click()
     await panel.waitFor({ state: 'visible' })
   }
 }
@@ -88,7 +99,10 @@ export async function addNoteViaUI(page: Page, content: string) {
   const textarea = page.locator('.notes-panel textarea')
   await textarea.fill(content)
   await page.keyboard.press('Control+Enter')
-  await page.locator('.notes-panel').getByText(content).waitFor({ state: 'visible', timeout: 5_000 })
+  await page
+    .locator('.notes-panel')
+    .getByText(content)
+    .waitFor({ state: 'visible', timeout: 5_000 })
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────

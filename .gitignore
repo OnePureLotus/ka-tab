@@ -12,6 +12,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Local WXT browser startup (machine-specific binary paths)
+web-ext.config.ts
+
 # OS
 .DS_Store
 Thumbs.db

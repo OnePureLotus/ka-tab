@@ -1,21 +1,29 @@
-import type { Component } from 'solid-js'
-import { createSignal, onMount, onCleanup, Show } from 'solid-js'
-import TopBar from './components/TopBar'
+import { runBoardMigration } from '@/features/boards/migrate'
+import {
+  boardsStore,
+  loadBoards,
+  setActiveBoard,
+  useBoardsStorageSync,
+} from '@/features/boards/store'
 import CollectionBoard from '@/features/collections/components/CollectionBoard'
-import TabTray from '@/features/tab-tray/components/TabTray'
+import { collectionsStore } from '@/features/collections/store'
+import { loadCollections, useCollectionsStorageSync } from '@/features/collections/store'
 import NotePanel from '@/features/notes/components/NotePanel'
+import type { Settings } from '@/features/settings/types'
 import ConflictBanner from '@/features/sync/components/ConflictBanner'
 import ConflictModal from '@/features/sync/components/ConflictModal'
-import Toast from '@/shared/components/Toast'
-import { collectionsStore } from '@/features/collections/store'
 import { loadConflicts } from '@/features/sync/sync.store'
+import TabTray from '@/features/tab-tray/components/TabTray'
+import Toast from '@/shared/components/Toast'
 import { sendCommand } from '@/shared/messaging/client'
+import { watchSettings } from '@/shared/messaging/storage-sync'
 import { MessageType } from '@/shared/messaging/types'
 import type { CollectionOpenPayload, Result } from '@/shared/messaging/types'
 import { getSettings } from '@/shared/storage/client'
-import { watchSettings } from '@/shared/messaging/storage-sync'
 import { showToast } from '@/shared/toast'
-import type { Settings } from '@/features/settings/types'
+import type { Component } from 'solid-js'
+import { Show, createSignal, onCleanup, onMount } from 'solid-js'
+import TopBar from './components/TopBar'
 
 function applyTheme(theme: Settings['theme']) {
   const root = document.documentElement
@@ -29,8 +37,15 @@ const App: Component = () => {
   const [triggerCreateCollection, setTriggerCreateCollection] = createSignal(0)
   const [showConflictModal, setShowConflictModal] = createSignal(false)
 
+  useBoardsStorageSync()
+  useCollectionsStorageSync()
+
   onMount(async () => {
     loadConflicts()
+    await runBoardMigration()
+    await loadBoards()
+    await loadCollections()
+
     const s = await getSettings()
     applyTheme(s.theme)
     const unwatch = watchSettings((updated) => {
@@ -56,17 +71,21 @@ const App: Component = () => {
     }
   }
 
+  async function handleSwitchBoard(boardId: string) {
+    await setActiveBoard(boardId)
+  }
+
   return (
     <div style="display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--katab-color-bg);">
       <TopBar
         onAddCollection={() => setTriggerCreateCollection((n) => n + 1)}
         onSearch={setSearchQuery}
         onOpenSettings={() => chrome.runtime.openOptionsPage()}
+        onSwitchBoard={handleSwitchBoard}
       />
       <ConflictBanner onOpenModal={() => setShowConflictModal(true)} />
 
       <div style="display: flex; flex: 1; overflow: hidden;">
-        {/* Tab tray - leftmost */}
         <aside
           class="tab-tray-panel"
           style="width: 240px; flex-shrink: 0; border-right: 1px solid var(--katab-color-border); overflow: hidden; background: var(--katab-color-surface);"
@@ -74,19 +93,19 @@ const App: Component = () => {
           <TabTray />
         </aside>
 
-        {/* Collections board - center/main area */}
         <main
           class="collections-panel"
           style="flex: 1; overflow: hidden; background: var(--katab-color-bg);"
         >
           <CollectionBoard
+            activeBoardId={boardsStore.activeBoardId}
             onOpenCollection={handleOpenCollection}
+            onSwitchBoard={handleSwitchBoard}
             triggerCreate={triggerCreateCollection()}
             searchQuery={searchQuery()}
           />
         </main>
 
-        {/* Note panel */}
         <aside
           class="notes-panel"
           style="width: 300px; flex-shrink: 0; border-left: 1px solid var(--katab-color-border); overflow: hidden; background: var(--katab-color-surface);"

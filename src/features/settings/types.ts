@@ -26,6 +26,7 @@ export const SettingsSchema = v.object({
   blockedDomains: v.array(v.string()),
   openCollectionMode: v.picklist(['tab-group', 'new-window']),
   colorPalette: v.optional(v.array(ColorEntrySchema), DEFAULT_COLOR_PALETTE),
+  activeBoardId: v.optional(v.string()),
 })
 
 export type Settings = v.InferOutput<typeof SettingsSchema>

@@ -1,16 +1,16 @@
-import { nanoid } from 'nanoid'
-import { hashContentSync } from '@/shared/utils/hash'
 import { mapToTabGroupColor } from '@/shared/color/tab-group-mapper'
+import { hashContentSync } from '@/shared/utils/hash'
+import { nanoid } from 'nanoid'
 import type { Collection, Site, TabGroupColor } from './types'
 
-export function createCollection(name: string, color: string): Collection {
+export function createCollection(name: string, color: string, boardId: string): Collection {
   const now = Date.now()
   const id = nanoid()
   const sites: Site[] = []
   const tabGroupColor = mapToTabGroupColor(color)
   const hash = hashContentSync({ name, color, sites })
 
-  return { id, name, color, tabGroupColor, sites, createdAt: now, updatedAt: now, hash }
+  return { id, boardId, name, color, tabGroupColor, sites, createdAt: now, updatedAt: now, hash }
 }
 
 export function addSiteToCollection(

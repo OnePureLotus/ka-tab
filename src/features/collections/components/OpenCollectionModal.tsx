@@ -1,10 +1,10 @@
-import type { Component } from 'solid-js'
-import { createSignal, createMemo, Show } from 'solid-js'
 import Modal from '@/shared/components/Modal'
-import { collectionsStore } from '../store'
 import { sendCommand } from '@/shared/messaging/client'
 import { MessageType } from '@/shared/messaging/types'
 import type { CollectionOpenPayload, Result } from '@/shared/messaging/types'
+import type { Component } from 'solid-js'
+import { Show, createMemo, createSignal } from 'solid-js'
+import { collectionsStore } from '../store'
 
 interface OpenCollectionModalProps {
   open: boolean

@@ -24,6 +24,7 @@ export type Site = v.InferOutput<typeof SiteSchema>
 
 export const CollectionSchema = v.object({
   id: v.string(),
+  boardId: v.string(),
   name: v.pipe(v.string(), v.minLength(1), v.maxLength(50)),
   color: v.pipe(v.string(), v.regex(/^#[0-9a-fA-F]{6}$/)),
   tabGroupColor: v.optional(
