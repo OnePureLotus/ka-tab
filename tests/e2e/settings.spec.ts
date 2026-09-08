@@ -159,18 +159,18 @@ test.describe('Settings – Data & Backup section', () => {
     ).toBeVisible()
   })
 
-  test('E2E-SE-16: Export Backup button is visible in the Data section', async ({
+  test('E2E-SE-16: Export to file button is visible in the Sync section', async ({
     optionsPage: page,
   }) => {
-    await page.getByText('Data & Backup').first().click()
-    await expect(page.getByRole('button', { name: 'Export Backup' })).toBeVisible()
+    await page.getByText('Sync', { exact: true }).first().click()
+    await expect(page.getByRole('button', { name: 'Export to file' })).toBeVisible()
   })
 
-  test('E2E-SE-17: Import Backup button is visible in the Data section', async ({
+  test('E2E-SE-17: Import from file button is visible in the Sync section', async ({
     optionsPage: page,
   }) => {
-    await page.getByText('Data & Backup').first().click()
-    await expect(page.getByRole('button', { name: 'Import Backup' })).toBeVisible()
+    await page.getByText('Sync', { exact: true }).first().click()
+    await expect(page.getByRole('button', { name: 'Import from file' })).toBeVisible()
   })
 })
 

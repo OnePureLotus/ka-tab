@@ -15,14 +15,21 @@ import {
 import type { Component } from 'solid-js'
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
 import {
+  COLLECTION_CARD_GAP,
+  COLLECTION_CARD_MIN_HEIGHT,
+  COLLECTION_CARD_MIN_WIDTH,
+} from '../constants'
+import {
   addSiteToCollection,
   createCollection,
+  removeSiteFromCollection,
   renameCollection,
   updateCollectionColor,
 } from '../service'
 import { collectionsStore } from '../store'
 import {
   addCollection,
+  getCollectionById,
   getCollectionsForBoard,
   removeCollection,
   reorderCollectionsInStore,
@@ -34,6 +41,10 @@ import ChangeColorModal from './ChangeColorModal'
 import CollectionCard from './CollectionCard'
 import CollectionModal from './CollectionModal'
 import CreateCollectionModal from './CreateCollectionModal'
+import EditSiteDialog from './EditSiteDialog'
+import { MasonryItem, MasonryLayout } from './MasonryLayout'
+
+const CREATE_COLLECTION_ITEM_ID = '__create_collection__'
 
 // ─── Sortable card wrapper ────────────────────────────────────────────────────
 
@@ -45,6 +56,8 @@ interface SortableCardProps {
   onAddSite: (id: string) => void
   onOpenModal: (id: string) => void
   onOpenCollection: (id: string) => void
+  onEditSite: (collectionId: string, siteId: string) => void
+  onDeleteSite: (collectionId: string, siteId: string) => void
   onTabDrop?: (url: string, title: string, favicon: string) => void
 }
 
@@ -70,6 +83,8 @@ const SortableCard: Component<SortableCardProps> = (props) => {
         onAddSite={props.onAddSite}
         onOpenModal={props.onOpenModal}
         onOpenCollection={props.onOpenCollection}
+        onEditSite={props.onEditSite}
+        onDeleteSite={props.onDeleteSite}
         {...(props.onTabDrop ? { onTabDrop: props.onTabDrop } : {})}
       />
     </div>
@@ -91,6 +106,13 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   const [addSiteFor, setAddSiteFor] = createSignal<string | null>(null)
   const [colorChangeFor, setColorChangeFor] = createSignal<string | null>(null)
   const [modalCollectionId, setModalCollectionId] = createSignal<string | null>(null)
+  const [editSiteFor, setEditSiteFor] = createSignal<{
+    collectionId: string
+    siteId: string
+  } | null>(null)
+  const [masonryRelayout, setMasonryRelayout] = createSignal(0)
+
+  const skeletonGridStyle = `display: grid; grid-template-columns: repeat(auto-fill, minmax(${COLLECTION_CARD_MIN_WIDTH}px, 1fr)); gap: ${COLLECTION_CARD_GAP}px;`
 
   createEffect(() => {
     const trigger = props.triggerCreate
@@ -116,9 +138,26 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     )
   })
 
-  const modalCollection = createMemo(
-    () => collectionsStore.items.find((c) => c.id === modalCollectionId()) ?? null,
-  )
+  const masonryItemIds = createMemo(() => [
+    ...filteredCollections().map((c) => c.id),
+    CREATE_COLLECTION_ITEM_ID,
+  ])
+
+  const modalCollection = createMemo(() => {
+    const id = modalCollectionId()
+    if (!id) return null
+    return getCollectionById(id) ?? null
+  })
+
+  const editSiteContext = createMemo(() => {
+    const target = editSiteFor()
+    if (!target) return null
+    const collection = getCollectionById(target.collectionId)
+    if (!collection) return null
+    const site = collection.sites.find((s) => s.id === target.siteId)
+    if (!site) return null
+    return { collection, site }
+  })
 
   async function handleCreate(name: string, color: string) {
     const boardId = props.activeBoardId
@@ -131,7 +170,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleRename(id: string, name: string) {
-    const col = collectionsStore.items.find((c) => c.id === id)
+    const col = getCollectionById(id)
     if (!col) return
     await updateCollection(renameCollection(col, name))
   }
@@ -141,7 +180,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
   }
 
   async function handleColorPicked(id: string, color: string, tabGroupColor?: string) {
-    const col = collectionsStore.items.find((c) => c.id === id)
+    const col = getCollectionById(id)
     if (!col) return
     await updateCollection(
       updateCollectionColor(
@@ -159,8 +198,19 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     await removeCollection(id, col?.boardId)
   }
 
+  async function handleDeleteSite(collectionId: string, siteId: string) {
+    const col = getCollectionById(collectionId)
+    if (!col) return
+    const updated = removeSiteFromCollection(col, siteId)
+    await updateCollection(updated)
+  }
+
+  function handleEditSite(collectionId: string, siteId: string) {
+    setEditSiteFor({ collectionId, siteId })
+  }
+
   async function handleTabDrop(collectionId: string, url: string, title: string, favicon: string) {
-    const col = collectionsStore.items.find((c) => c.id === collectionId)
+    const col = getCollectionById(collectionId)
     if (!col) return
     const isDuplicate = col.sites.some((s) => s.url === url)
     if (isDuplicate) {
@@ -191,6 +241,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
     reordered.splice(from, 1)
     reordered.splice(to, 0, item)
     await reorderCollectionsInStore(boardId, reordered)
+    setMasonryRelayout((n) => n + 1)
   }
 
   const isLoading = () => collectionsStore.loading || boardsStore.loading
@@ -221,7 +272,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
 
       {/* Loading skeleton */}
       <Show when={isLoading()}>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+        <div style={skeletonGridStyle}>
           <For each={[1, 2, 3]}>
             {() => (
               <div style="border-radius: 12px; border: 1px solid var(--katab-color-border); background: var(--katab-color-surface); padding: 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -276,52 +327,63 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
         >
           <DragDropSensors>
             <SortableProvider ids={sortableIds()}>
-              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+              <MasonryLayout
+                itemIds={masonryItemIds}
+                minColumnWidth={COLLECTION_CARD_MIN_WIDTH}
+                gap={COLLECTION_CARD_GAP}
+                relayoutToken={masonryRelayout}
+              >
                 <For each={filteredCollections()}>
                   {(collection) => (
-                    <SortableCard
-                      collection={collection}
-                      onRename={handleRename}
-                      onChangeColor={handleChangeColor}
-                      onDelete={handleDelete}
-                      onAddSite={(id) => setAddSiteFor(id)}
-                      onOpenModal={(id) => setModalCollectionId(id)}
-                      onOpenCollection={props.onOpenCollection}
-                      onTabDrop={(url, title, favicon) =>
-                        handleTabDrop(collection.id, url, title, favicon)
-                      }
-                    />
+                    <MasonryItem id={collection.id}>
+                      <SortableCard
+                        collection={collection}
+                        onRename={handleRename}
+                        onChangeColor={handleChangeColor}
+                        onDelete={handleDelete}
+                        onAddSite={(id) => setAddSiteFor(id)}
+                        onOpenModal={(id) => setModalCollectionId(id)}
+                        onOpenCollection={props.onOpenCollection}
+                        onEditSite={handleEditSite}
+                        onDeleteSite={handleDeleteSite}
+                        onTabDrop={(url, title, favicon) =>
+                          handleTabDrop(collection.id, url, title, favicon)
+                        }
+                      />
+                    </MasonryItem>
                   )}
                 </For>
 
-                <button
-                  onClick={() => setShowCreate(true)}
-                  style="border: 1px solid var(--katab-color-border); border-radius: 8px; background: var(--katab-color-surface); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; min-height: 268px; transition: border-color 150ms, box-shadow 150ms;"
-                  onMouseEnter={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.borderColor =
-                      'var(--katab-color-accent)'
-                    ;(e.currentTarget as HTMLElement).style.boxShadow =
-                      '0 2px 8px rgba(79,70,229,0.10)'
-                  }}
-                  onMouseLeave={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.borderColor =
-                      'var(--katab-color-border)'
-                    ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
-                  }}
-                >
-                  <div style="width: 56px; height: 56px; border-radius: 28px; background: var(--katab-color-chip-bg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: var(--katab-color-accent);">
-                    +
-                  </div>
-                  <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
-                    <span style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
-                      Create Collection
-                    </span>
-                    <span style="font-size: 14px; font-weight: 500; color: var(--katab-color-text-secondary); text-align: center;">
-                      Pick a color, then drag tabs into it.
-                    </span>
-                  </div>
-                </button>
-              </div>
+                <MasonryItem id={CREATE_COLLECTION_ITEM_ID}>
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    style={`border: 1px solid var(--katab-color-border); border-radius: 8px; background: var(--katab-color-surface); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; min-height: ${COLLECTION_CARD_MIN_HEIGHT}px; width: 100%; box-sizing: border-box; transition: border-color 150ms, box-shadow 150ms;`}
+                    onMouseEnter={(e) => {
+                      ;(e.currentTarget as HTMLElement).style.borderColor =
+                        'var(--katab-color-accent)'
+                      ;(e.currentTarget as HTMLElement).style.boxShadow =
+                        '0 2px 8px rgba(79,70,229,0.10)'
+                    }}
+                    onMouseLeave={(e) => {
+                      ;(e.currentTarget as HTMLElement).style.borderColor =
+                        'var(--katab-color-border)'
+                      ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
+                    }}
+                  >
+                    <div style="width: 56px; height: 56px; border-radius: 28px; background: var(--katab-color-chip-bg); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: var(--katab-color-accent);">
+                      +
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                      <span style="font-size: 18px; font-weight: 600; color: var(--katab-color-text-primary);">
+                        Create Collection
+                      </span>
+                      <span style="font-size: 14px; font-weight: 500; color: var(--katab-color-text-secondary); text-align: center;">
+                        Pick a color, then drag tabs into it.
+                      </span>
+                    </div>
+                  </button>
+                </MasonryItem>
+              </MasonryLayout>
             </SortableProvider>
           </DragDropSensors>
 
@@ -338,6 +400,8 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
                     onAddSite={() => {}}
                     onOpenModal={() => {}}
                     onOpenCollection={() => {}}
+                    onEditSite={() => {}}
+                    onDeleteSite={() => {}}
                   />
                 </div>
               ) : null
@@ -352,6 +416,16 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
             collection={collectionsStore.items.find((c) => c.id === addSiteFor())!}
             onClose={() => setAddSiteFor(null)}
           />
+        </Show>
+
+        <Show when={editSiteContext()}>
+          {(ctx) => (
+            <EditSiteDialog
+              collection={ctx().collection}
+              site={ctx().site}
+              onClose={() => setEditSiteFor(null)}
+            />
+          )}
         </Show>
 
         <Show
@@ -385,6 +459,7 @@ const CollectionBoard: Component<CollectionBoardProps> = (props) => {
           setAddSiteFor(id)
         }}
         onOpenCollection={props.onOpenCollection}
+        onEditSite={handleEditSite}
       />
     </div>
   )

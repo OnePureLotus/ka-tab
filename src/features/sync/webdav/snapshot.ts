@@ -1,6 +1,4 @@
-import { createBoard } from '@/features/boards/service'
 import type { Board } from '@/features/boards/types'
-import { DEFAULT_BOARD_NAME } from '@/features/boards/types'
 import type { Collection } from '@/features/collections/types'
 import type { Note } from '@/features/notes/types'
 import type { Settings } from '@/features/settings/types'
@@ -8,6 +6,9 @@ import { DEFAULT_SETTINGS } from '@/features/settings/types'
 import type { ConflictRecord } from '@/features/sync/types'
 import {
   STORAGE_KEYS,
+  deleteBoard,
+  deleteCollection,
+  deleteNote,
   getAllBoards,
   getAllCollections,
   getAllNotes,
@@ -16,6 +17,7 @@ import {
   setCollection,
   setNote,
   setSettings,
+  storage,
 } from '@/shared/storage/client'
 import type { SyncSnapshot } from './types'
 
@@ -53,6 +55,7 @@ export function detectConflicts(
   local: SyncSnapshot,
   remote: SyncSnapshot,
   lastSyncAt: number,
+  lastLocalChangeAt = 0,
 ): ConflictRecord[] {
   const conflicts: ConflictRecord[] = []
   const now = Date.now()
@@ -90,7 +93,7 @@ export function detectConflicts(
   const localSettings = JSON.stringify(local.settings)
   const remoteSettings = JSON.stringify(remote.settings)
   if (
-    local.exportedAt > lastSyncAt &&
+    lastLocalChangeAt > lastSyncAt &&
     remote.exportedAt > lastSyncAt &&
     localSettings !== remoteSettings
   ) {
@@ -106,58 +109,66 @@ export function detectConflicts(
   return conflicts
 }
 
-export function hasLocalChangesSince(lastSyncAt: number, snapshot: SyncSnapshot): boolean {
-  if (snapshot.exportedAt > lastSyncAt) return true
+export function hasLocalChangesSince(
+  lastSyncAt: number,
+  snapshot: SyncSnapshot,
+  lastLocalChangeAt = 0,
+): boolean {
+  if (lastLocalChangeAt > lastSyncAt) return true
   const items: Timestamped[] = [...snapshot.boards, ...snapshot.collections, ...snapshot.notes]
   return items.some((i) => i.updatedAt > lastSyncAt)
 }
 
-/** Apply remote snapshot entities that are newer than local or missing locally */
-export async function applySnapshot(remote: SyncSnapshot, lastSyncAt: number): Promise<void> {
-  const [localBoards, localCollections, localNotes, localSettings] = await Promise.all([
+/**
+ * Replace local storage with the remote snapshot (authoritative pull).
+ * Ensures indexes and board.collectionIds stay consistent across devices.
+ */
+export async function applySnapshotReplace(remote: SyncSnapshot): Promise<void> {
+  const [localBoards, localCollections, localNotes] = await Promise.all([
     getAllBoards(),
     getAllCollections(),
     getAllNotes(),
-    getSettings(),
   ])
 
-  const boardMap = new Map(localBoards.map((b) => [b.id, b]))
+  const remoteBoardIds = new Set(remote.boards.map((b) => b.id))
+  const remoteColIds = new Set(remote.collections.map((c) => c.id))
+  const remoteNoteIds = new Set(remote.notes.map((n) => n.id))
+
+  for (const board of localBoards) {
+    if (!remoteBoardIds.has(board.id)) await deleteBoard(board.id)
+  }
+  for (const col of localCollections) {
+    if (!remoteColIds.has(col.id)) await deleteCollection(col.id)
+  }
+  for (const note of localNotes) {
+    if (!remoteNoteIds.has(note.id)) await deleteNote(note.id)
+  }
+
+  await storage.setItem(
+    STORAGE_KEYS.BOARDS_INDEX,
+    remote.boards.map((b) => b.id),
+  )
   for (const board of remote.boards) {
-    const existing = boardMap.get(board.id)
-    if (!existing || board.updatedAt > existing.updatedAt) await setBoard(board)
+    await storage.setItem(STORAGE_KEYS.BOARD(board.id), board)
   }
 
-  const colMap = new Map(localCollections.map((c) => [c.id, c]))
-  let boards = await getAllBoards()
-  if (remote.collections.length > 0 && boards.length === 0) {
-    const defaultBoard = createBoard(
-      DEFAULT_BOARD_NAME,
-      remote.collections.map((c) => c.id),
-    )
-    await setBoard(defaultBoard)
-    boards = [defaultBoard]
-  }
-  const fallbackBoardId = boards[0]?.id
-
+  await storage.setItem(
+    STORAGE_KEYS.COLLECTIONS_INDEX,
+    remote.collections.map((c) => c.id),
+  )
   for (const col of remote.collections) {
-    const existing = colMap.get(col.id)
-    const boardId = col.boardId ?? fallbackBoardId
-    const withBoard = boardId ? { ...col, boardId } : col
-    if (!existing || withBoard.updatedAt > existing.updatedAt) {
-      await setCollection(withBoard)
-    }
+    await storage.setItem(STORAGE_KEYS.COLLECTION(col.id), col)
   }
 
-  const noteMap = new Map(localNotes.map((n) => [n.id, n]))
+  await storage.setItem(
+    STORAGE_KEYS.NOTES_INDEX,
+    remote.notes.map((n) => n.id),
+  )
   for (const note of remote.notes) {
-    const existing = noteMap.get(note.id)
-    if (!existing || note.updatedAt > existing.updatedAt) await setNote(note)
+    await storage.setItem(STORAGE_KEYS.NOTE(note.id), note)
   }
 
-  if (remote.exportedAt > lastSyncAt) {
-    const merged = { ...DEFAULT_SETTINGS, ...localSettings, ...remote.settings }
-    await setSettings(merged)
-  }
+  await setSettings({ ...DEFAULT_SETTINGS, ...remote.settings })
 }
 
 export async function applyConflictWinner(key: string, value: unknown): Promise<void> {

@@ -59,6 +59,18 @@ describe('detectConflicts', () => {
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]?.key).toBe('local:katab:collection:c1')
   })
+
+  it('does not flag settings conflict when only remote changed', () => {
+    const local = {
+      ...emptySnapshot(2000),
+      settings: { ...DEFAULT_SETTINGS, theme: 'light' as const },
+    }
+    const remote = {
+      ...emptySnapshot(1500),
+      settings: { ...DEFAULT_SETTINGS, theme: 'dark' as const },
+    }
+    expect(detectConflicts(local, remote, 1000, 500)).toEqual([])
+  })
 })
 
 describe('migrateFromChromeSync', () => {

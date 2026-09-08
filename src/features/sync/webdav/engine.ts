@@ -1,10 +1,11 @@
 import type { ConflictRecord, SyncMeta } from '@/features/sync/types'
 import { getWebDavConfig } from '@/features/sync/webdav-config'
+import { MessageType } from '@/shared/messaging/types'
 import { getSyncMeta, setSyncMeta } from '@/shared/storage/client'
 import { nanoid } from 'nanoid'
 import { WebDavError, downloadSnapshot, uploadSnapshot } from './client'
 import {
-  applySnapshot,
+  applySnapshotReplace,
   buildSnapshot,
   detectConflicts,
   hasLocalChangesSince,
@@ -12,7 +13,7 @@ import {
 } from './snapshot'
 import type { SyncRuntimeStatus } from './types'
 
-const DEBOUNCE_MS = 3000
+const SYNC_INTERVAL_MS = 5 * 60 * 1000
 
 const INTERNAL_KEYS = new Set([
   'katab:sync_meta',
@@ -27,7 +28,22 @@ function isUserDataKey(key: string): boolean {
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let periodicSyncTimer: ReturnType<typeof setInterval> | null = null
 let syncing = false
+let applyingRemote = false
+
+export function isApplyingRemoteSnapshot(): boolean {
+  return applyingRemote
+}
+
+export async function runApplyingRemote<T>(fn: () => Promise<T>): Promise<T> {
+  applyingRemote = true
+  try {
+    return await fn()
+  } finally {
+    applyingRemote = false
+  }
+}
 
 const runtimeStatus: SyncRuntimeStatus = {
   phase: 'idle',
@@ -40,9 +56,18 @@ export function getSyncRuntimeStatus(): SyncRuntimeStatus {
   return { ...runtimeStatus }
 }
 
+function normalizeSyncMeta(meta: SyncMeta): SyncMeta {
+  return {
+    ...meta,
+    lastRemoteExportedAt: meta.lastRemoteExportedAt ?? 0,
+    lastLocalChangeAt: meta.lastLocalChangeAt ?? 0,
+    pendingConflicts: meta.pendingConflicts ?? [],
+  }
+}
+
 export async function ensureSyncMeta(): Promise<SyncMeta> {
   const existing = await getSyncMeta()
-  if (existing) return existing
+  if (existing) return normalizeSyncMeta(existing)
   const meta: SyncMeta = {
     deviceId: nanoid(),
     lastSyncAt: 0,
@@ -59,7 +84,12 @@ function setPhase(phase: SyncRuntimeStatus['phase'], error?: string) {
   runtimeStatus.lastError = error ?? null
 }
 
+function notifySyncDataReload(): void {
+  chrome.runtime.sendMessage({ type: MessageType.SYNC_DATA_APPLIED }).catch(() => {})
+}
+
 async function touchLocalChange(): Promise<void> {
+  if (applyingRemote) return
   const meta = await ensureSyncMeta()
   await setSyncMeta({ ...meta, lastLocalChangeAt: Date.now() })
 }
@@ -69,12 +99,24 @@ export function scheduleDebouncedPush(): void {
   debounceTimer = setTimeout(() => {
     debounceTimer = null
     push().catch((err) => console.error('[KaTab] debounced push failed', err))
-  }, DEBOUNCE_MS)
+  }, SYNC_INTERVAL_MS)
+}
+
+function startPeriodicSync(): void {
+  if (periodicSyncTimer) clearInterval(periodicSyncTimer)
+  periodicSyncTimer = setInterval(() => {
+    syncNow().catch((err) => console.error('[KaTab] periodic sync failed', err))
+  }, SYNC_INTERVAL_MS)
+}
+
+function stopPeriodicSync(): void {
+  if (periodicSyncTimer) clearInterval(periodicSyncTimer)
+  periodicSyncTimer = null
 }
 
 export function initSyncEngine(): void {
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local') return
+    if (area !== 'local' || applyingRemote) return
     const keys = Object.keys(changes)
     if (!keys.some(isUserDataKey)) return
     void touchLocalChange()
@@ -86,6 +128,9 @@ export function initSyncEngine(): void {
   void getWebDavConfig().then((cfg) => {
     if (cfg.enabled) {
       pull().catch((err) => console.error('[KaTab] startup pull failed', err))
+      startPeriodicSync()
+    } else {
+      stopPeriodicSync()
     }
   })
 }
@@ -109,7 +154,7 @@ export async function pull(): Promise<{ ok: boolean; error?: string }> {
 
     const remote = parseSnapshot(raw)
     const local = await buildSnapshot(meta.deviceId)
-    const conflicts = detectConflicts(local, remote, meta.lastSyncAt)
+    const conflicts = detectConflicts(local, remote, meta.lastSyncAt, meta.lastLocalChangeAt)
 
     if (conflicts.length > 0) {
       const merged = [...meta.pendingConflicts]
@@ -121,12 +166,15 @@ export async function pull(): Promise<{ ok: boolean; error?: string }> {
       return { ok: false, error: 'Conflicts detected' }
     }
 
-    await applySnapshot(remote, meta.lastSyncAt)
+    await runApplyingRemote(() => applySnapshotReplace(remote))
+
     await setSyncMeta({
       ...meta,
       lastSyncAt: remote.exportedAt,
       lastRemoteExportedAt: remote.exportedAt,
+      lastLocalChangeAt: remote.exportedAt,
     })
+    notifySyncDataReload()
     runtimeStatus.lastSuccessAt = Date.now()
     runtimeStatus.lastDirection = 'pull'
     setPhase('idle')
@@ -159,9 +207,9 @@ export async function push(): Promise<{ ok: boolean; error?: string }> {
 
     if (rawRemote) {
       const remote = parseSnapshot(rawRemote)
-      const localModified = hasLocalChangesSince(meta.lastSyncAt, local)
+      const localModified = hasLocalChangesSince(meta.lastSyncAt, local, meta.lastLocalChangeAt)
       if (remote.exportedAt > meta.lastSyncAt && localModified) {
-        const conflicts = detectConflicts(local, remote, meta.lastSyncAt)
+        const conflicts = detectConflicts(local, remote, meta.lastSyncAt, meta.lastLocalChangeAt)
         if (conflicts.length > 0) {
           const merged = [...meta.pendingConflicts]
           for (const c of conflicts) {
@@ -218,6 +266,7 @@ export async function resolveConflictAndPush(
     ...meta,
     pendingConflicts: meta.pendingConflicts.filter((c) => c.key !== key),
     lastSyncAt: Date.now(),
+    lastLocalChangeAt: Date.now(),
   })
   if ((await getWebDavConfig()).enabled) {
     await push()

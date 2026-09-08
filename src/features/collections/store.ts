@@ -5,7 +5,7 @@ import {
   detachCollectionFromBoard,
   updateBoard,
 } from '@/features/boards/store'
-import { watchCollectionsIndex } from '@/shared/messaging/storage-sync'
+import { listenStorageChanges, watchCollectionsIndex } from '@/shared/messaging/storage-sync'
 import {
   getAllCollections,
   setCollection as persistCollection,
@@ -30,15 +30,60 @@ const [collectionsStore, setCollectionsStore] = createStore<CollectionsState>({
 
 export { collectionsStore, setCollectionsStore }
 
+function isPreferredCollection(candidate: Collection, current: Collection): boolean {
+  if (candidate.updatedAt > current.updatedAt) return true
+  if (candidate.updatedAt < current.updatedAt) return false
+  return candidate.sites.length > current.sites.length
+}
+
+function normalizeCollectionsById(items: Collection[]): Collection[] {
+  const byId = new Map<string, Collection>()
+  for (const col of items) {
+    const existing = byId.get(col.id)
+    if (!existing || isPreferredCollection(col, existing)) {
+      byId.set(col.id, col)
+    }
+  }
+  return Array.from(byId.values())
+}
+
+function mergeCollectionsFromStorage(loaded: Collection[], existing: Collection[]): Collection[] {
+  const existingById = new Map(existing.map((c) => [c.id, c]))
+  const merged = loaded.map((loadedCol) => {
+    const local = existingById.get(loadedCol.id)
+    if (local && local.updatedAt >= loadedCol.updatedAt) return local
+    return loadedCol
+  })
+  return normalizeCollectionsById(merged)
+}
+
+export function getCollectionById(id: string): Collection | undefined {
+  const matches = collectionsStore.items.filter((c) => c.id === id)
+  if (matches.length === 0) return undefined
+  return matches.reduce((best, cur) => (isPreferredCollection(cur, best) ? cur : best), matches[0]!)
+}
+
+function upsertCollectionInStore(collection: Collection): void {
+  setCollectionsStore(
+    produce((s) => {
+      const idx = s.items.findIndex((c) => c.id === collection.id)
+      if (idx === -1) s.items.push(collection)
+      else s.items[idx] = collection
+      s.items = normalizeCollectionsById(s.items)
+    }),
+  )
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function loadCollections(): Promise<void> {
   setCollectionsStore('loading', true)
   try {
     const items = await getAllCollections()
+    const merged = mergeCollectionsFromStorage(items, collectionsStore.items)
     setCollectionsStore(
       produce((s) => {
-        s.items = items
+        s.items = merged
         s.loading = false
         s.error = null
       }),
@@ -58,34 +103,24 @@ export function getCollectionsForBoard(boardId: string): Collection[] {
   const board = boardsStore.items.find((b) => b.id === boardId)
   if (!board) return []
 
-  const byId = new Map(collectionsStore.items.map((c) => [c.id, c]))
   return board.collectionIds
-    .map((id) => byId.get(id))
+    .map((id) => getCollectionById(id))
     .filter((c): c is Collection => c != null && c.boardId === boardId)
 }
 
 export async function addCollection(collection: Collection): Promise<void> {
   await persistCollection(collection)
   await attachCollectionToBoard(collection.boardId, collection.id)
-  setCollectionsStore(
-    produce((s) => {
-      s.items.push(collection)
-    }),
-  )
+  upsertCollectionInStore(collection)
 }
 
 export async function updateCollection(collection: Collection): Promise<void> {
+  upsertCollectionInStore(collection)
   await persistCollection(collection)
-  setCollectionsStore(
-    produce((s) => {
-      const idx = s.items.findIndex((c) => c.id === collection.id)
-      if (idx !== -1) s.items[idx] = collection
-    }),
-  )
 }
 
 export async function removeCollection(id: string, boardId?: string): Promise<void> {
-  const col = collectionsStore.items.find((c) => c.id === id)
+  const col = getCollectionById(id)
   const resolvedBoardId = boardId ?? col?.boardId
   await removeFromStorage(id)
   if (resolvedBoardId) {
@@ -114,9 +149,20 @@ export async function reorderCollectionsInStore(
 }
 
 export function subscribeCollectionsStorage(): () => void {
-  return watchCollectionsIndex(() => {
-    loadCollections()
+  const unwatchIndex = watchCollectionsIndex(() => {
+    void loadCollections()
   })
+  const unwatchEntities = listenStorageChanges((update) => {
+    if (update.type !== 'collection' || !update.newValue) return
+    const collection = update.newValue as Collection
+    const existing = getCollectionById(collection.id)
+    if (existing && existing.updatedAt > collection.updatedAt) return
+    upsertCollectionInStore(collection)
+  })
+  return () => {
+    unwatchIndex()
+    unwatchEntities()
+  }
 }
 
 export function useCollectionsStorageSync(): void {

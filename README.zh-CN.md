@@ -87,11 +87,14 @@
 
 ---
 
-### ☁️ 跨设备同步（WebDAV）
+### ☁️ 同步（本地文件 & WebDAV）
 
-所有看板、Collection、Note 和设置数据保存在本机 `chrome.storage.local`。可在 Options → **WebDAV Sync** 中配置你自己的 WebDAV 服务器（如 Nextcloud、坚果云、Synology），通过 `katab-sync.json` 快照同步。凭据仅保存在本机。
+所有看板、Collection、Note 和设置数据保存在本机 `chrome.storage.local`。可在 Options → **Sync** 中：
 
-- 数据变更后约 3 秒自动上传（已启用时）
+- **导出 / 导入** 本地 JSON 快照文件（与 WebDAV 使用相同格式）
+- 配置你自己的 WebDAV 服务器（如 Nextcloud、坚果云、Synology），通过 `katab-sync.json` 跨设备同步。凭据仅保存在本机。
+
+- 数据变更后约 5 分钟自动同步（已启用 WebDAV 时）
 - 扩展启动时自动拉取远端
 - 支持手动「立即同步 / 上传 / 下载」
 - 多设备同时编辑同一数据时，新标签页会显示冲突解决面板

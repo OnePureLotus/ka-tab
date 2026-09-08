@@ -87,11 +87,14 @@ Configure color palettes for Collections, theme (light/dark), and data backup.
 
 ---
 
-### ☁️ Cross-device sync (WebDAV)
+### ☁️ Sync (local file & WebDAV)
 
-All Boards, Collections, Notes, and Settings are stored locally in `chrome.storage.local`. Configure your own WebDAV server (Nextcloud, Jianguoyun, Synology, etc.) under Options → **WebDAV Sync** to sync a `katab-sync.json` snapshot. Credentials stay on this device only.
+All Boards, Collections, Notes, and Settings are stored locally in `chrome.storage.local`. Under Options → **Sync** you can:
 
-- Auto-upload ~3s after local changes (when enabled)
+- **Export / import** a JSON snapshot file locally (same format as WebDAV)
+- Configure your own WebDAV server (Nextcloud, Jianguoyun, Synology, etc.) to sync `katab-sync.json` across devices. Credentials stay on this device only.
+
+- Auto-sync every ~5 minutes after local changes (when WebDAV is enabled)
 - Pull from remote on extension startup
 - Manual **Sync now / Upload / Download** buttons
 - Conflict resolution banner on the new tab when two devices edit the same item

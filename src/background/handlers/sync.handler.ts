@@ -1,4 +1,5 @@
 import { resolveConflict } from '@/features/sync/conflict-resolver'
+import { exportSnapshotJson, importSnapshotJson } from '@/features/sync/local-file'
 import { getWebDavConfig, setWebDavConfig } from '@/features/sync/webdav-config'
 import { testWebDavConnection } from '@/features/sync/webdav/client'
 import {
@@ -9,7 +10,11 @@ import {
   syncNow,
 } from '@/features/sync/webdav/engine'
 import type { WebDavConfig } from '@/features/sync/webdav/types'
-import type { MessageType, SyncResolveConflictPayload } from '@/shared/messaging/types'
+import type {
+  MessageType,
+  SyncImportSnapshotPayload,
+  SyncResolveConflictPayload,
+} from '@/shared/messaging/types'
 import { getSyncMeta } from '@/shared/storage/client'
 
 export function registerSyncHandlers(
@@ -57,6 +62,19 @@ export function registerSyncHandlers(
             data: { meta, runtime: getSyncRuntimeStatus() },
           }),
         )
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'SYNC_EXPORT_SNAPSHOT': {
+      exportSnapshotJson()
+        .then((data) => sendResponse({ ok: true, data }))
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'SYNC_IMPORT_SNAPSHOT': {
+      const payload = message.payload as SyncImportSnapshotPayload
+      importSnapshotJson(payload.raw)
+        .then((result) => sendResponse(result))
         .catch((err) => sendResponse({ ok: false, error: String(err) }))
       return true
     }

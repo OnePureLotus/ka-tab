@@ -1,4 +1,5 @@
 import {
+  SiteUpdateError,
   addSiteToCollection,
   createCollection,
   removeSiteFromCollection,
@@ -6,6 +7,7 @@ import {
   reorderCollections,
   reorderSitesInCollection,
   updateCollectionColor,
+  updateSiteInCollection,
   validateSiteLimit,
 } from '@/features/collections/service'
 import { CollectionSchema } from '@/features/collections/types'
@@ -162,6 +164,40 @@ describe('removeSiteFromCollection', () => {
     const siteId = withSite.sites[0]?.id
     const result = removeSiteFromCollection(withSite, siteId)
     expect(result.hash).not.toBe(withSite.hash)
+  })
+})
+
+// ─── 1.3b 编辑网站 ────────────────────────────────────────────────────────────
+
+describe('updateSiteInCollection', () => {
+  it('updates title and url for an existing site', () => {
+    const col = createCollection('Test', '#1a73e8', BOARD_ID)
+    const withSite = addSiteToCollection(col, makeSite({ title: 'Old', url: 'https://a.com' }))
+    const siteId = withSite.sites[0]!.id
+    const updated = updateSiteInCollection(withSite, siteId, {
+      url: 'https://b.com',
+      title: 'New title',
+    })
+    expect(updated.sites[0]?.title).toBe('New title')
+    expect(updated.sites[0]?.url).toBe('https://b.com')
+    expect(updated.hash).not.toBe(withSite.hash)
+  })
+
+  it('rejects duplicate urls from another site', () => {
+    let col = createCollection('Test', '#1a73e8', BOARD_ID)
+    col = addSiteToCollection(col, makeSite({ url: 'https://a.com', title: 'A' }))
+    col = addSiteToCollection(col, makeSite({ url: 'https://b.com', title: 'B' }))
+    const siteId = col.sites[1]!.id
+    expect(() =>
+      updateSiteInCollection(col, siteId, { url: 'https://a.com', title: 'B copy' }),
+    ).toThrow(SiteUpdateError)
+  })
+
+  it('throws when site id is missing', () => {
+    const col = createCollection('Test', '#1a73e8', BOARD_ID)
+    expect(() =>
+      updateSiteInCollection(col, 'missing', { url: 'https://a.com', title: 'A' }),
+    ).toThrow(SiteUpdateError)
   })
 })
 

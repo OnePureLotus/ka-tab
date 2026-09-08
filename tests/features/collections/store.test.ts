@@ -1,5 +1,5 @@
 import { createBoard } from '@/features/boards/service'
-import { createCollection } from '@/features/collections/service'
+import { addSiteToCollection, createCollection } from '@/features/collections/service'
 import { produce } from 'solid-js/store'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -92,11 +92,12 @@ describe('updateCollection (ST-02 / ST-03)', () => {
     expect(collectionsStore.items.find((c) => c.id === col2.id)?.name).toBe('B')
   })
 
-  it('ST-03: updateCollection 传入不存在的 id 不崩溃', async () => {
+  it('ST-03: updateCollection 传入不存在的 id 时写入 store', async () => {
     vi.mocked(mockSet).mockResolvedValue(undefined)
     const ghost = makeCol('Ghost')
     await expect(updateCollection(ghost)).resolves.not.toThrow()
-    expect(collectionsStore.items).toHaveLength(0)
+    expect(collectionsStore.items).toHaveLength(1)
+    expect(collectionsStore.items[0]?.id).toBe(ghost.id)
   })
 })
 
@@ -148,6 +149,47 @@ describe('loadCollections (ST-05 / ST-06)', () => {
     await loadCollections()
     expect(collectionsStore.loading).toBe(false)
     expect(collectionsStore.error).not.toBeNull()
+  })
+
+  it('ST-08: loadCollections 不覆盖 updatedAt 更新的本地 collection', async () => {
+    vi.mocked(mockSet).mockResolvedValue(undefined)
+    const col = makeCol('Drag target')
+    await addCollection(col)
+    const withSite = addSiteToCollection(col, {
+      url: 'https://example.com',
+      title: 'Example',
+      favicon: '',
+    })
+    await updateCollection(withSite)
+
+    vi.mocked(mockGetAll).mockResolvedValue([col])
+    await loadCollections()
+
+    expect(collectionsStore.items[0]?.sites).toHaveLength(1)
+    expect(collectionsStore.items[0]?.sites[0]?.url).toBe('https://example.com')
+  })
+
+  it('ST-09: updateCollection 在重复 id 时保留带站点的版本', async () => {
+    vi.mocked(mockSet).mockResolvedValue(undefined)
+    const col = makeCol('Drag target')
+    await addCollection(col)
+
+    setCollectionsStore(
+      produce((s) => {
+        s.items.push({ ...col, sites: [] })
+      }),
+    )
+    expect(collectionsStore.items.filter((c) => c.id === col.id).length).toBeGreaterThan(1)
+
+    const withSite = addSiteToCollection(col, {
+      url: 'https://example.com',
+      title: 'Example',
+      favicon: '',
+    })
+    await updateCollection(withSite)
+
+    expect(collectionsStore.items.filter((c) => c.id === col.id)).toHaveLength(1)
+    expect(collectionsStore.items[0]?.sites).toHaveLength(1)
   })
 })
 

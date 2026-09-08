@@ -2,6 +2,20 @@ import { mapToTabGroupColor } from '@/shared/color/tab-group-mapper'
 import { hashContentSync } from '@/shared/utils/hash'
 import { nanoid } from 'nanoid'
 import type { Collection, Site, TabGroupColor } from './types'
+import { getFaviconUrl, isValidUrl } from './utils'
+
+export class SiteUpdateError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SiteUpdateError'
+  }
+}
+
+export interface UpdateSitePatch {
+  url: string
+  title: string
+  favicon?: string
+}
 
 export function createCollection(name: string, color: string, boardId: string): Collection {
   const now = Date.now()
@@ -30,6 +44,38 @@ export function removeSiteFromCollection(collection: Collection, siteId: string)
   const updatedAt = Date.now()
   const hash = hashContentSync({ name: collection.name, color: collection.color, sites })
 
+  return { ...collection, sites, updatedAt, hash }
+}
+
+export function updateSiteInCollection(
+  collection: Collection,
+  siteId: string,
+  patch: UpdateSitePatch,
+): Collection {
+  const index = collection.sites.findIndex((s) => s.id === siteId)
+  if (index === -1) throw new SiteUpdateError('Site not found')
+
+  const rawUrl = patch.url.trim()
+  if (!rawUrl) throw new SiteUpdateError('URL is required')
+  if (!isValidUrl(rawUrl)) throw new SiteUpdateError('Invalid URL')
+
+  const isDuplicate = collection.sites.some((s) => s.id !== siteId && s.url === rawUrl)
+  if (isDuplicate) throw new SiteUpdateError('Duplicate URL')
+
+  const existing = collection.sites[index]!
+  const favicon =
+    patch.favicon ?? (existing.url !== rawUrl ? getFaviconUrl(rawUrl) : existing.favicon)
+
+  const sites = [...collection.sites]
+  sites[index] = {
+    ...existing,
+    url: rawUrl,
+    title: patch.title.trim() || rawUrl,
+    favicon,
+  }
+
+  const updatedAt = Date.now()
+  const hash = hashContentSync({ name: collection.name, color: collection.color, sites })
   return { ...collection, sites, updatedAt, hash }
 }
 
