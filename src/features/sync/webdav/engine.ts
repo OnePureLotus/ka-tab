@@ -13,7 +13,7 @@ import {
 } from './snapshot'
 import type { SyncRuntimeStatus } from './types'
 
-const DEBOUNCE_MS = 3000
+const SYNC_INTERVAL_MS = 5 * 60 * 1000
 
 const INTERNAL_KEYS = new Set([
   'katab:sync_meta',
@@ -28,6 +28,7 @@ function isUserDataKey(key: string): boolean {
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let periodicSyncTimer: ReturnType<typeof setInterval> | null = null
 let syncing = false
 let applyingRemote = false
 
@@ -89,7 +90,19 @@ export function scheduleDebouncedPush(): void {
   debounceTimer = setTimeout(() => {
     debounceTimer = null
     push().catch((err) => console.error('[KaTab] debounced push failed', err))
-  }, DEBOUNCE_MS)
+  }, SYNC_INTERVAL_MS)
+}
+
+function startPeriodicSync(): void {
+  if (periodicSyncTimer) clearInterval(periodicSyncTimer)
+  periodicSyncTimer = setInterval(() => {
+    syncNow().catch((err) => console.error('[KaTab] periodic sync failed', err))
+  }, SYNC_INTERVAL_MS)
+}
+
+function stopPeriodicSync(): void {
+  if (periodicSyncTimer) clearInterval(periodicSyncTimer)
+  periodicSyncTimer = null
 }
 
 export function initSyncEngine(): void {
@@ -106,6 +119,9 @@ export function initSyncEngine(): void {
   void getWebDavConfig().then((cfg) => {
     if (cfg.enabled) {
       pull().catch((err) => console.error('[KaTab] startup pull failed', err))
+      startPeriodicSync()
+    } else {
+      stopPeriodicSync()
     }
   })
 }

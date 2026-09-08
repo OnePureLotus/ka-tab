@@ -1,4 +1,4 @@
-import ScrollingText from '@/shared/components/ScrollingText'
+import EllipsisTitle from '@/shared/components/EllipsisTitle'
 import SiteFavicon from '@/shared/components/SiteFavicon'
 import type { Component } from 'solid-js'
 import { Show, createSignal } from 'solid-js'
@@ -65,21 +65,19 @@ const CollectionSiteRow: Component<CollectionSiteRowProps> = (props) => {
       <Show
         when={variant() === 'modal'}
         fallback={
-          <ScrollingText
-            active={hovered()}
+          <EllipsisTitle
+            text={displayTitle()}
+            showTooltip={hovered()}
             textStyle="font-size: 12px; font-weight: 500; color: var(--katab-color-text-site);"
-          >
-            {displayTitle()}
-          </ScrollingText>
+          />
         }
       >
         <div style="flex: 1; min-width: 0; overflow: hidden;">
-          <ScrollingText
-            active={hovered()}
+          <EllipsisTitle
+            text={displayTitle()}
+            showTooltip={hovered()}
             textStyle="font-size: 13px; color: var(--katab-color-text-primary);"
-          >
-            {displayTitle()}
-          </ScrollingText>
+          />
           <div style="font-size: 11px; color: var(--katab-color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             {props.site.url}
           </div>
