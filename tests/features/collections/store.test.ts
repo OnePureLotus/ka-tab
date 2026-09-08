@@ -1,5 +1,5 @@
 import { createBoard } from '@/features/boards/service'
-import { createCollection } from '@/features/collections/service'
+import { addSiteToCollection, createCollection } from '@/features/collections/service'
 import { produce } from 'solid-js/store'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -148,6 +148,24 @@ describe('loadCollections (ST-05 / ST-06)', () => {
     await loadCollections()
     expect(collectionsStore.loading).toBe(false)
     expect(collectionsStore.error).not.toBeNull()
+  })
+
+  it('ST-08: loadCollections 不覆盖 updatedAt 更新的本地 collection', async () => {
+    vi.mocked(mockSet).mockResolvedValue(undefined)
+    const col = makeCol('Drag target')
+    await addCollection(col)
+    const withSite = addSiteToCollection(col, {
+      url: 'https://example.com',
+      title: 'Example',
+      favicon: '',
+    })
+    await updateCollection(withSite)
+
+    vi.mocked(mockGetAll).mockResolvedValue([col])
+    await loadCollections()
+
+    expect(collectionsStore.items[0]?.sites).toHaveLength(1)
+    expect(collectionsStore.items[0]?.sites[0]?.url).toBe('https://example.com')
   })
 })
 

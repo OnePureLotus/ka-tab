@@ -5,7 +5,7 @@ import {
   detachCollectionFromBoard,
   updateBoard,
 } from '@/features/boards/store'
-import { watchCollectionsIndex } from '@/shared/messaging/storage-sync'
+import { listenStorageChanges, watchCollectionsIndex } from '@/shared/messaging/storage-sync'
 import {
   getAllCollections,
   setCollection as persistCollection,
@@ -30,15 +30,25 @@ const [collectionsStore, setCollectionsStore] = createStore<CollectionsState>({
 
 export { collectionsStore, setCollectionsStore }
 
+function mergeCollectionsFromStorage(loaded: Collection[], existing: Collection[]): Collection[] {
+  const existingById = new Map(existing.map((c) => [c.id, c]))
+  return loaded.map((loadedCol) => {
+    const local = existingById.get(loadedCol.id)
+    if (local && local.updatedAt > loadedCol.updatedAt) return local
+    return loadedCol
+  })
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function loadCollections(): Promise<void> {
   setCollectionsStore('loading', true)
   try {
     const items = await getAllCollections()
+    const merged = mergeCollectionsFromStorage(items, collectionsStore.items)
     setCollectionsStore(
       produce((s) => {
-        s.items = items
+        s.items = merged
         s.loading = false
         s.error = null
       }),
@@ -75,13 +85,13 @@ export async function addCollection(collection: Collection): Promise<void> {
 }
 
 export async function updateCollection(collection: Collection): Promise<void> {
-  await persistCollection(collection)
   setCollectionsStore(
     produce((s) => {
       const idx = s.items.findIndex((c) => c.id === collection.id)
       if (idx !== -1) s.items[idx] = collection
     }),
   )
+  await persistCollection(collection)
 }
 
 export async function removeCollection(id: string, boardId?: string): Promise<void> {
@@ -114,9 +124,29 @@ export async function reorderCollectionsInStore(
 }
 
 export function subscribeCollectionsStorage(): () => void {
-  return watchCollectionsIndex(() => {
-    loadCollections()
+  const unwatchIndex = watchCollectionsIndex(() => {
+    void loadCollections()
   })
+  const unwatchEntities = listenStorageChanges((update) => {
+    if (update.type !== 'collection' || !update.newValue) return
+    const collection = update.newValue as Collection
+    setCollectionsStore(
+      produce((s) => {
+        const idx = s.items.findIndex((c) => c.id === collection.id)
+        if (idx === -1) {
+          s.items.push(collection)
+          return
+        }
+        const existing = s.items[idx]
+        if (existing && existing.updatedAt > collection.updatedAt) return
+        s.items[idx] = collection
+      }),
+    )
+  })
+  return () => {
+    unwatchIndex()
+    unwatchEntities()
+  }
 }
 
 export function useCollectionsStorageSync(): void {
