@@ -32,6 +32,13 @@ export const MessageType = {
 
   // Sync commands
   SYNC_RESOLVE_CONFLICT: 'SYNC_RESOLVE_CONFLICT',
+  SYNC_PUSH: 'SYNC_PUSH',
+  SYNC_PULL: 'SYNC_PULL',
+  SYNC_NOW: 'SYNC_NOW',
+  SYNC_STATUS_GET: 'SYNC_STATUS_GET',
+  WEBDAV_TEST_CONNECTION: 'WEBDAV_TEST_CONNECTION',
+  WEBDAV_SAVE_CONFIG: 'WEBDAV_SAVE_CONFIG',
+  WEBDAV_GET_CONFIG: 'WEBDAV_GET_CONFIG',
 
   // Settings commands
   SETTINGS_GET: 'SETTINGS_GET',
@@ -93,5 +100,5 @@ export interface CollectionsGetAllResult {
 
 export interface Message<T = unknown> {
   type: MessageType
-  payload: T
+  payload?: T
 }

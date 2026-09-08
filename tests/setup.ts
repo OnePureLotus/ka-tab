@@ -1,7 +1,7 @@
 // Vitest global setup
 // Mock chrome extension APIs for unit tests
 
-const mockStorage: Record<string, unknown> = {}
+const _mockStorage: Record<string, unknown> = {}
 
 global.chrome = {
   runtime: {
@@ -12,12 +12,12 @@ global.chrome = {
   },
   storage: {
     sync: {
-      get: vi.fn((keys, cb) => cb?.({})),
+      get: vi.fn((_keys, cb) => cb?.({})),
       set: vi.fn((_items, cb) => cb?.()),
       onChanged: { addListener: vi.fn() },
     },
     local: {
-      get: vi.fn((keys, cb) => cb?.({})),
+      get: vi.fn((_keys, cb) => cb?.({})),
       set: vi.fn((_items, cb) => cb?.()),
     },
   },

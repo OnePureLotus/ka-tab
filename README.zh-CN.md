@@ -87,9 +87,14 @@
 
 ---
 
-### ☁️ 跨设备同步
+### ☁️ 跨设备同步（WebDAV）
 
-所有看板、Collection 和 Note 数据通过 `chrome.storage.sync` 自动同步。若两台设备同时编辑同一数据，冲突解决面板允许你手动选择保留哪个版本。
+所有看板、Collection、Note 和设置数据保存在本机 `chrome.storage.local`。可在 Options → **WebDAV Sync** 中配置你自己的 WebDAV 服务器（如 Nextcloud、坚果云、Synology），通过 `katab-sync.json` 快照同步。凭据仅保存在本机。
+
+- 数据变更后约 3 秒自动上传（已启用时）
+- 扩展启动时自动拉取远端
+- 支持手动「立即同步 / 上传 / 下载」
+- 多设备同时编辑同一数据时，新标签页会显示冲突解决面板
 
 ---
 

@@ -1,7 +1,16 @@
-import type { MessageType, SyncResolveConflictPayload } from '@/shared/messaging/types'
 import { resolveConflict } from '@/features/sync/conflict-resolver'
-import { getSyncMeta, setSyncMeta } from '@/features/sync/storage-sync'
-import { storage } from '@/shared/storage/client'
+import { getWebDavConfig, setWebDavConfig } from '@/features/sync/webdav-config'
+import { testWebDavConnection } from '@/features/sync/webdav/client'
+import {
+  getSyncRuntimeStatus,
+  pull,
+  push,
+  resolveConflictAndPush,
+  syncNow,
+} from '@/features/sync/webdav/engine'
+import type { WebDavConfig } from '@/features/sync/webdav/types'
+import type { MessageType, SyncResolveConflictPayload } from '@/shared/messaging/types'
+import { getSyncMeta } from '@/shared/storage/client'
 
 export function registerSyncHandlers(
   message: { type: MessageType; payload: unknown },
@@ -12,7 +21,7 @@ export function registerSyncHandlers(
     case 'SYNC_RESOLVE_CONFLICT': {
       const payload = message.payload as SyncResolveConflictPayload
       handleResolveConflict(payload)
-        .then(sendResponse)
+        .then(() => sendResponse({ ok: true }))
         .catch((err) => {
           console.error('[KaTab SW] SYNC_RESOLVE_CONFLICT failed', err)
           sendResponse({
@@ -20,6 +29,55 @@ export function registerSyncHandlers(
             error: { type: 'UNKNOWN', message: String(err), context: err },
           })
         })
+      return true
+    }
+    case 'SYNC_PUSH': {
+      push()
+        .then(sendResponse)
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'SYNC_PULL': {
+      pull()
+        .then(sendResponse)
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'SYNC_NOW': {
+      syncNow()
+        .then(sendResponse)
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'SYNC_STATUS_GET': {
+      getSyncMeta()
+        .then((meta) =>
+          sendResponse({
+            ok: true,
+            data: { meta, runtime: getSyncRuntimeStatus() },
+          }),
+        )
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'WEBDAV_TEST_CONNECTION': {
+      const config = message.payload as WebDavConfig
+      testWebDavConnection(config)
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'WEBDAV_SAVE_CONFIG': {
+      const config = message.payload as WebDavConfig
+      setWebDavConfig(config)
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+    case 'WEBDAV_GET_CONFIG': {
+      getWebDavConfig()
+        .then((config) => sendResponse({ ok: true, data: config }))
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
       return true
     }
     default:
@@ -34,12 +92,6 @@ async function handleResolveConflict(payload: SyncResolveConflictPayload): Promi
   const conflict = meta.pendingConflicts.find((c) => c.key === payload.key)
   if (!conflict) return
 
-  const winner = resolveConflict(conflict, payload.choice)
-  await storage.setItem(payload.key as `sync:${string}` | `local:${string}`, winner)
-
-  await setSyncMeta({
-    ...meta,
-    pendingConflicts: meta.pendingConflicts.filter((c) => c.key !== payload.key),
-    lastSyncAt: Date.now(),
-  })
+  resolveConflict(conflict, payload.choice)
+  await resolveConflictAndPush(payload.key, payload.choice, conflict)
 }

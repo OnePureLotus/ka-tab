@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
 import { isConflict, resolveConflict } from '@/features/sync/conflict-resolver'
 import type { ConflictRecord } from '@/features/sync/types'
+import { describe, expect, it } from 'vitest'
 
 const LAST_SYNC = 1000
 const BEFORE_SYNC = 999
@@ -34,7 +34,7 @@ describe('isConflict', () => {
 
 describe('resolveConflict', () => {
   const conflict: ConflictRecord = {
-    key: 'sync:katab:collection:abc',
+    key: 'local:katab:collection:abc',
     localValue: { name: 'local version' },
     remoteValue: { name: 'remote version' },
     detectedAt: Date.now(),

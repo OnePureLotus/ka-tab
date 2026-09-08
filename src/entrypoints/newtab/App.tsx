@@ -12,7 +12,7 @@ import NotePanel from '@/features/notes/components/NotePanel'
 import type { Settings } from '@/features/settings/types'
 import ConflictBanner from '@/features/sync/components/ConflictBanner'
 import ConflictModal from '@/features/sync/components/ConflictModal'
-import { loadConflicts } from '@/features/sync/sync.store'
+import { loadConflicts, watchConflicts } from '@/features/sync/sync.store'
 import TabTray from '@/features/tab-tray/components/TabTray'
 import Toast from '@/shared/components/Toast'
 import { sendCommand } from '@/shared/messaging/client'
@@ -42,6 +42,8 @@ const App: Component = () => {
 
   onMount(async () => {
     loadConflicts()
+    const unwatchConflicts = watchConflicts()
+    onCleanup(unwatchConflicts)
     await runBoardMigration()
     await loadBoards()
     await loadCollections()

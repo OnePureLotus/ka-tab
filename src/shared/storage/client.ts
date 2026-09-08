@@ -8,15 +8,16 @@ import { storage } from 'wxt/utils/storage'
 
 // Centralized storage key constants — prevents typos and enables refactoring
 export const STORAGE_KEYS = {
-  META: 'sync:katab:meta',
-  BOARDS_INDEX: 'sync:katab:boards:index',
-  BOARD: (id: string) => `sync:katab:board:${id}` as const,
-  COLLECTIONS_INDEX: 'sync:katab:collections:index',
-  COLLECTION: (id: string) => `sync:katab:collection:${id}` as const,
-  NOTES_INDEX: 'sync:katab:notes:index',
-  NOTE: (id: string) => `sync:katab:note:${id}` as const,
-  SETTINGS: 'sync:katab:settings',
+  META: 'local:katab:meta',
+  BOARDS_INDEX: 'local:katab:boards:index',
+  BOARD: (id: string) => `local:katab:board:${id}` as const,
+  COLLECTIONS_INDEX: 'local:katab:collections:index',
+  COLLECTION: (id: string) => `local:katab:collection:${id}` as const,
+  NOTES_INDEX: 'local:katab:notes:index',
+  NOTE: (id: string) => `local:katab:note:${id}` as const,
+  SETTINGS: 'local:katab:settings',
   SYNC_META: 'local:katab:sync_meta',
+  WEBDAV_CONFIG: 'local:katab:webdav_config',
   MIGRATION_BOARDS_V1: 'local:katab:migration_v1_boards',
 } as const
 
@@ -137,28 +138,4 @@ export async function getSyncMeta(): Promise<SyncMeta | null> {
 
 export async function setSyncMeta(meta: SyncMeta): Promise<void> {
   await storage.setItem(STORAGE_KEYS.SYNC_META, meta)
-}
-
-// ─── Quota Check ─────────────────────────────────────────────────────────────
-
-/** Warn in console if storage usage exceeds 80% of Chrome sync quota (102KB) */
-export async function checkStorageQuota(): Promise<void> {
-  const SYNC_QUOTA_BYTES = 102_400
-  const WARNING_THRESHOLD = 0.8
-
-  try {
-    const usage = await new Promise<number>((resolve) => {
-      chrome.storage.sync.getBytesInUse(null, resolve)
-    })
-    const ratio = usage / SYNC_QUOTA_BYTES
-    if (ratio >= WARNING_THRESHOLD) {
-      console.warn('[KaTab] Storage quota warning', {
-        used: usage,
-        total: SYNC_QUOTA_BYTES,
-        percent: Math.round(ratio * 100),
-      })
-    }
-  } catch (err) {
-    console.error('[KaTab] Failed to check storage quota', err)
-  }
 }

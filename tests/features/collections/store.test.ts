@@ -13,8 +13,8 @@ vi.mock('@/shared/storage/client', () => ({
   getBoard: vi.fn(),
   setBoard: vi.fn(),
   STORAGE_KEYS: {
-    COLLECTIONS_INDEX: 'sync:katab:collections:index',
-    BOARDS_INDEX: 'sync:katab:boards:index',
+    COLLECTIONS_INDEX: 'local:katab:collections:index',
+    BOARDS_INDEX: 'local:katab:boards:index',
   },
   storage: { setItem: vi.fn(), getItem: vi.fn() },
 }))

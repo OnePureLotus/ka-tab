@@ -1,8 +1,8 @@
-import type { Component } from 'solid-js'
-import { For, createSignal, Show } from 'solid-js'
-import { syncStore, removeConflict } from '../sync.store'
 import { sendCommand } from '@/shared/messaging/client'
 import { MessageType } from '@/shared/messaging/types'
+import type { Component } from 'solid-js'
+import { For, Show, createSignal } from 'solid-js'
+import { removeConflict, syncStore } from '../sync.store'
 
 interface ConflictModalProps {
   onClose: () => void

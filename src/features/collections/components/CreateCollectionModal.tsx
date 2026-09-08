@@ -1,7 +1,7 @@
 import { mapToTabGroupColor } from '@/shared/color/tab-group-mapper'
 import Modal from '@/shared/components/Modal'
 import type { Component } from 'solid-js'
-import { createSignal } from 'solid-js'
+import { For, createSignal } from 'solid-js'
 
 interface CreateCollectionModalProps {
   open: boolean
@@ -51,14 +51,15 @@ const CreateCollectionModal: Component<CreateCollectionModalProps> = (props) => 
             Color
           </label>
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                style={`width: 28px; height: 28px; border-radius: 50%; background: ${c}; border: 3px solid ${color() === c ? 'var(--katab-color-text-primary)' : 'transparent'}; cursor: pointer; padding: 0;`}
-                title={c}
-              />
-            ))}
+            <For each={PRESET_COLORS}>
+              {(c) => (
+                <button
+                  onClick={() => setColor(c)}
+                  style={`width: 28px; height: 28px; border-radius: 50%; background: ${c}; border: 3px solid ${color() === c ? 'var(--katab-color-text-primary)' : 'transparent'}; cursor: pointer; padding: 0;`}
+                  title={c}
+                />
+              )}
+            </For>
             <input
               type="color"
               value={color()}

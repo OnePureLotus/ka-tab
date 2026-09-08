@@ -1,5 +1,6 @@
+import { getSyncMeta, setSyncMeta } from '@/shared/storage/client'
+import { STORAGE_KEYS, storage } from '@/shared/storage/client'
 import { createSignal } from 'solid-js'
-import { getSyncMeta, setSyncMeta } from './storage-sync'
 import type { ConflictRecord } from './types'
 
 const [conflicts, setConflicts] = createSignal<ConflictRecord[]>([])
@@ -17,12 +18,10 @@ export async function loadConflicts(): Promise<void> {
   }
 }
 
-export function addConflict(record: ConflictRecord): void {
-  setConflicts((prev) => {
-    const filtered = prev.filter((c) => c.key !== record.key)
-    return [...filtered, record]
+export function watchConflicts(): () => void {
+  return storage.watch(STORAGE_KEYS.SYNC_META, () => {
+    void loadConflicts()
   })
-  persistConflicts()
 }
 
 export function removeConflict(key: string): void {

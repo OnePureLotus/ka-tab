@@ -1,12 +1,12 @@
-import type { Component } from 'solid-js'
-import { createSignal, Show, For, onMount, onCleanup } from 'solid-js'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
-import { notesStore, loadNotes, addNote, removeNote } from '../store'
-import { createNote } from '../service'
-import { formatRelativeTime } from '@/shared/utils/time'
 import Skeleton from '@/shared/components/Skeleton'
-import { storage, STORAGE_KEYS } from '@/shared/storage/client'
+import { STORAGE_KEYS, storage } from '@/shared/storage/client'
+import { formatRelativeTime } from '@/shared/utils/time'
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
+import type { Component } from 'solid-js'
+import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
+import { createNote } from '../service'
+import { addNote, loadNotes, notesStore, removeNote } from '../store'
 import type { Note } from '../types'
 
 function renderMarkdown(content: string): string {
@@ -68,7 +68,7 @@ const NotePanel: Component = () => {
   onMount(() => {
     loadNotes()
 
-    const unwatch = storage.watch<string[]>(STORAGE_KEYS.NOTES_INDEX as `sync:${string}`, () => {
+    const unwatch = storage.watch<string[]>(STORAGE_KEYS.NOTES_INDEX as `local:${string}`, () => {
       loadNotes()
     })
     onCleanup(unwatch)

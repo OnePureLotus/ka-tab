@@ -4,6 +4,11 @@ import { DEFAULT_BOARD_NAME } from '@/features/boards/types'
 import type { Collection } from '@/features/collections/types'
 import type { Settings } from '@/features/settings/types'
 import { DEFAULT_SETTINGS } from '@/features/settings/types'
+import type { WebDavConfig } from '@/features/sync/webdav/types'
+import { DEFAULT_WEBDAV_CONFIG } from '@/features/sync/webdav/types'
+import type { SyncRuntimeStatus } from '@/features/sync/webdav/types'
+import { sendCommand } from '@/shared/messaging/client'
+import { MessageType } from '@/shared/messaging/types'
 import {
   getAllBoards,
   getAllCollections,
@@ -73,7 +78,7 @@ function SettingCard(props: { title: string; description: string; children: any 
 
 // ─── Main Options App ─────────────────────────────────────────────────────────
 
-type NavSection = 'appearance' | 'data' | 'privacy'
+type NavSection = 'appearance' | 'data' | 'sync' | 'privacy'
 
 const OptionsApp: Component = () => {
   const [settings, setLocalSettings] = createSignal<Settings>({ ...DEFAULT_SETTINGS })
@@ -83,17 +88,81 @@ const OptionsApp: Component = () => {
   const [newDomain, setNewDomain] = createSignal('')
   const [saved, setSaved] = createSignal(false)
   const [activeSection, setActiveSection] = createSignal<NavSection>('appearance')
-  const [storageUsed, setStorageUsed] = createSignal(0)
-  const STORAGE_QUOTA = 102_400
+  const [webdav, setWebdav] = createSignal<WebDavConfig>({ ...DEFAULT_WEBDAV_CONFIG })
+  const [syncStatus, setSyncStatus] = createSignal<SyncRuntimeStatus | null>(null)
+  const [syncMessage, setSyncMessage] = createSignal('')
+  const [syncBusy, setSyncBusy] = createSignal(false)
+
+  type SyncCommandResult = { ok: boolean; data?: unknown; error?: string }
 
   onMount(async () => {
-    const [s, cols, notes] = await Promise.all([getSettings(), getAllCollections(), getAllNotes()])
+    const [s, cols, notes, configRes] = await Promise.all([
+      getSettings(),
+      getAllCollections(),
+      getAllNotes(),
+      sendCommand<undefined, SyncCommandResult>({ type: MessageType.WEBDAV_GET_CONFIG }),
+    ])
     setLocalSettings(s)
     setCollections(cols)
     setNotesCount(notes.length)
     applyTheme(s.theme)
-    chrome.storage.sync.getBytesInUse(null, (bytes) => setStorageUsed(bytes))
+    if (configRes.ok && configRes.data) setWebdav(configRes.data as WebDavConfig)
+    void refreshSyncStatus()
   })
+
+  async function refreshSyncStatus() {
+    const res = await sendCommand<undefined, SyncCommandResult>({
+      type: MessageType.SYNC_STATUS_GET,
+    })
+    if (res.ok && res.data) {
+      const { runtime } = res.data as { runtime: SyncRuntimeStatus }
+      setSyncStatus(runtime)
+    }
+  }
+
+  async function saveWebDavConfig() {
+    setSyncBusy(true)
+    setSyncMessage('')
+    try {
+      const res = await sendCommand<WebDavConfig, SyncCommandResult>({
+        type: MessageType.WEBDAV_SAVE_CONFIG,
+        payload: webdav(),
+      })
+      if (!res.ok) setSyncMessage(String(res.error ?? 'Failed to save'))
+      else setSyncMessage('Configuration saved')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  async function testConnection() {
+    setSyncBusy(true)
+    setSyncMessage('')
+    try {
+      const res = await sendCommand<WebDavConfig, SyncCommandResult>({
+        type: MessageType.WEBDAV_TEST_CONNECTION,
+        payload: webdav(),
+      })
+      setSyncMessage(res.ok ? 'Connection successful' : String(res.error ?? 'Connection failed'))
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  async function runSync(type: 'SYNC_NOW' | 'SYNC_PUSH' | 'SYNC_PULL') {
+    setSyncBusy(true)
+    setSyncMessage('')
+    try {
+      const res = await sendCommand<undefined, SyncCommandResult>({
+        type: MessageType[type],
+      })
+      if (res.ok) setSyncMessage('Sync completed')
+      else setSyncMessage(String(res.error ?? 'Sync failed'))
+      await refreshSyncStatus()
+    } finally {
+      setSyncBusy(false)
+    }
+  }
 
   async function refreshCounts() {
     const [cols, notes] = await Promise.all([getAllCollections(), getAllNotes()])
@@ -191,13 +260,10 @@ const OptionsApp: Component = () => {
     input.click()
   }
 
-  const storagePercent = () => Math.min(100, Math.round((storageUsed() / STORAGE_QUOTA) * 100))
-  const storageKB = () => Math.round(storageUsed() / 1024)
-  const storageQuotaKB = Math.round(STORAGE_QUOTA / 1024)
-
   const navItems: Array<{ id: NavSection; label: string; prefix: string }> = [
     { id: 'appearance', label: 'Appearance', prefix: 'Aa' },
     { id: 'data', label: 'Data & Backup', prefix: 'DB' },
+    { id: 'sync', label: 'WebDAV Sync', prefix: 'Wd' },
     { id: 'privacy', label: 'Privacy', prefix: 'Sh' },
   ]
 
@@ -270,25 +336,6 @@ const OptionsApp: Component = () => {
               }}
             </For>
           </nav>
-
-          {/* Sync storage usage */}
-          <div style="padding: 16px 28px 24px;">
-            <div
-              style={`font-size: 12px; font-weight: 600; color: ${T.textPrimary}; margin-bottom: 8px;`}
-            >
-              Sync storage
-            </div>
-            <div
-              style={`height: 8px; border-radius: 4px; background: ${T.surfaceSec}; overflow: hidden; margin-bottom: 6px;`}
-            >
-              <div
-                style={`height: 100%; border-radius: 4px; background: ${T.accent}; width: ${storagePercent()}%; transition: width 300ms;`}
-              />
-            </div>
-            <div style={`font-size: 11px; color: ${T.textSecondary};`}>
-              {storageKB()} KB of {storageQuotaKB} KB used
-            </div>
-          </div>
         </aside>
 
         {/* Main content */}
@@ -534,27 +581,6 @@ const OptionsApp: Component = () => {
                   </button>
                 </div>
               </SettingCard>
-
-              {/* Privacy card */}
-              <SettingCard title="Privacy" description="Data stays in Chrome storage and sync.">
-                <div style="display: flex; align-items: flex-start; gap: 14px;">
-                  <button
-                    onClick={() => {}}
-                    style={`width: 44px; height: 24px; border-radius: 12px; border: none; background: ${T.accent}; cursor: default; position: relative; flex-shrink: 0; margin-top: 2px;`}
-                    title="Always on — data syncs across Chrome profiles"
-                  >
-                    <div style="position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 9px; background: #fff;" />
-                  </button>
-                  <div>
-                    <div style={`font-size: 12px; font-weight: 600; color: ${T.textPrimary};`}>
-                      Sync across devices
-                    </div>
-                    <div style={`font-size: 11px; color: ${T.textSecondary}; margin-top: 3px;`}>
-                      Manual conflicts.
-                    </div>
-                  </div>
-                </div>
-              </SettingCard>
             </div>
 
             {/* Save button */}
@@ -633,6 +659,150 @@ const OptionsApp: Component = () => {
             </div>
           </Show>
 
+          {/* ── WebDAV Sync section ──────────────────────────────────────────── */}
+          <Show when={activeSection() === 'sync'}>
+            <h1
+              style={`font-size: 34px; font-weight: 700; color: ${T.textPrimary}; margin: 0 0 8px;`}
+            >
+              WebDAV Sync
+            </h1>
+            <p style={`font-size: 14px; color: ${T.textSecondary}; margin: 0 0 28px;`}>
+              Sync boards, collections, notes, and settings to your own WebDAV server. Credentials
+              are stored locally on this device only.
+            </p>
+
+            <div
+              style={`background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 10px; padding: 24px; max-width: 640px; display: flex; flex-direction: column; gap: 16px;`}
+            >
+              <label style="display: flex; align-items: center; gap: 10px; font-size: 13px;">
+                <input
+                  type="checkbox"
+                  checked={webdav().enabled}
+                  onChange={(e) => setWebdav((c) => ({ ...c, enabled: e.currentTarget.checked }))}
+                />
+                Enable WebDAV sync
+              </label>
+
+              <div>
+                <div
+                  style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                >
+                  Server URL
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://dav.example.com/remote.php/dav/files/user/"
+                  value={webdav().baseUrl}
+                  onInput={(e) => setWebdav((c) => ({ ...c, baseUrl: e.currentTarget.value }))}
+                  style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                />
+              </div>
+
+              <div>
+                <div
+                  style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                >
+                  Remote file path
+                </div>
+                <input
+                  type="text"
+                  placeholder="/katab-sync.json"
+                  value={webdav().remotePath}
+                  onInput={(e) => setWebdav((c) => ({ ...c, remotePath: e.currentTarget.value }))}
+                  style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                />
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                  <div
+                    style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                  >
+                    Username
+                  </div>
+                  <input
+                    type="text"
+                    value={webdav().username}
+                    onInput={(e) => setWebdav((c) => ({ ...c, username: e.currentTarget.value }))}
+                    style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                  />
+                </div>
+                <div>
+                  <div
+                    style={`font-size: 12px; font-weight: 600; color: ${T.textSecondary}; margin-bottom: 6px;`}
+                  >
+                    Password
+                  </div>
+                  <input
+                    type="password"
+                    value={webdav().password}
+                    onInput={(e) => setWebdav((c) => ({ ...c, password: e.currentTarget.value }))}
+                    style={`width: 100%; height: 36px; padding: 0 12px; border: 1px solid ${T.border}; border-radius: 8px; font-size: 13px; background: ${T.surfaceSec}; color: ${T.textPrimary}; box-sizing: border-box;`}
+                  />
+                </div>
+              </div>
+
+              <Show when={syncStatus()}>
+                {(status) => (
+                  <div style={`font-size: 12px; color: ${T.textSecondary}; line-height: 1.6;`}>
+                    Status: {status().phase}
+                    {status().lastSuccessAt
+                      ? ` · Last success: ${new Date(status().lastSuccessAt ?? 0).toLocaleString()}`
+                      : ''}
+                    {status().lastError ? ` · Error: ${status().lastError}` : ''}
+                  </div>
+                )}
+              </Show>
+
+              <Show when={syncMessage()}>
+                <div style={`font-size: 12px; color: ${T.textPrimary};`}>{syncMessage()}</div>
+              </Show>
+
+              <div style="display: flex; flex-wrap: gap: 10px;">
+                <button
+                  type="button"
+                  disabled={syncBusy()}
+                  onClick={() => saveWebDavConfig()}
+                  style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: ${T.accent}; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                >
+                  Save config
+                </button>
+                <button
+                  type="button"
+                  disabled={syncBusy()}
+                  onClick={() => testConnection()}
+                  style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; color: ${T.accent}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                >
+                  Test connection
+                </button>
+                <button
+                  type="button"
+                  disabled={syncBusy()}
+                  onClick={() => runSync('SYNC_NOW')}
+                  style={`height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: #059669; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                >
+                  Sync now
+                </button>
+                <button
+                  type="button"
+                  disabled={syncBusy()}
+                  onClick={() => runSync('SYNC_PUSH')}
+                  style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                >
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  disabled={syncBusy()}
+                  onClick={() => runSync('SYNC_PULL')}
+                  style={`height: 36px; padding: 0 16px; border: 1px solid ${T.border}; border-radius: 8px; background: ${T.surface}; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${syncBusy() ? 0.6 : 1};`}
+                >
+                  Download
+                </button>
+              </div>
+            </div>
+          </Show>
+
           {/* ── Privacy section ──────────────────────────────────────────────── */}
           <Show when={activeSection() === 'privacy'}>
             <h1
@@ -641,30 +811,17 @@ const OptionsApp: Component = () => {
               Privacy
             </h1>
             <p style={`font-size: 14px; color: ${T.textSecondary}; margin: 0 0 28px;`}>
-              Data stays in Chrome storage and sync.
+              Data is stored locally in your browser. Optional WebDAV sync sends a JSON snapshot to
+              a server you configure — credentials never leave this device except to authenticate
+              with your server.
             </p>
 
             <div
-              style={`background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 10px; padding: 24px; max-width: 360px;`}
+              style={`background: ${T.surface}; border: 1px solid ${T.border}; border-radius: 10px; padding: 24px; max-width: 480px; font-size: 13px; color: ${T.textSecondary}; line-height: 1.6;`}
             >
-              {/* Sync toggle */}
-              <div style="display: flex; align-items: flex-start; gap: 14px;">
-                <button
-                  onClick={() => {}}
-                  style={`width: 44px; height: 24px; border-radius: 12px; border: none; background: ${T.accent}; cursor: default; position: relative; flex-shrink: 0; margin-top: 2px;`}
-                  title="Always on — data syncs across Chrome profiles"
-                >
-                  <div style="position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 9px; background: #fff;" />
-                </button>
-                <div>
-                  <div style={`font-size: 12px; font-weight: 600; color: ${T.textPrimary};`}>
-                    Sync across devices
-                  </div>
-                  <div style={`font-size: 11px; color: ${T.textSecondary}; margin-top: 3px;`}>
-                    Manual conflicts resolved in the main UI.
-                  </div>
-                </div>
-              </div>
+              KaTab does not use Google or Microsoft account sync. Configure WebDAV under the Sync
+              tab to back up and sync across your own devices. If two devices edit the same item,
+              resolve conflicts from the new tab page banner.
             </div>
           </Show>
         </main>

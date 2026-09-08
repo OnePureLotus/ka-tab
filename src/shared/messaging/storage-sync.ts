@@ -4,8 +4,6 @@ import type { Note } from '@/features/notes/types'
 import type { Settings } from '@/features/settings/types'
 import { storage } from 'wxt/utils/storage'
 
-// ─── Storage change callback types ───────────────────────────────────────────
-
 export interface StorageUpdate {
   type:
     | 'collection'
@@ -22,22 +20,17 @@ export interface StorageUpdate {
 
 export type StorageUpdateHandler = (update: StorageUpdate) => void
 
-const COLLECTION_KEY_PREFIX = 'sync:katab:collection:'
-const BOARD_KEY_PREFIX = 'sync:katab:board:'
-const NOTE_KEY_PREFIX = 'sync:katab:note:'
-const COLLECTIONS_INDEX_KEY = 'sync:katab:collections:index'
-const BOARDS_INDEX_KEY = 'sync:katab:boards:index'
-const NOTES_INDEX_KEY = 'sync:katab:notes:index'
-const SETTINGS_KEY = 'sync:katab:settings'
+const COLLECTION_KEY_PREFIX = 'local:katab:collection:'
+const BOARD_KEY_PREFIX = 'local:katab:board:'
+const NOTE_KEY_PREFIX = 'local:katab:note:'
+const COLLECTIONS_INDEX_KEY = 'local:katab:collections:index'
+const BOARDS_INDEX_KEY = 'local:katab:boards:index'
+const NOTES_INDEX_KEY = 'local:katab:notes:index'
+const SETTINGS_KEY = 'local:katab:settings'
 
-/**
- * Sets up chrome.storage.onChanged listener and translates changes into
- * typed StorageUpdate callbacks that can drive store updates.
- * Returns an unsubscribe function.
- */
 export function listenStorageChanges(onUpdate: StorageUpdateHandler): () => void {
   const handler = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-    if (area !== 'sync') return
+    if (area !== 'local') return
 
     for (const [key, change] of Object.entries(changes)) {
       if (key === COLLECTIONS_INDEX_KEY) {
@@ -97,19 +90,18 @@ export function listenStorageChanges(onUpdate: StorageUpdateHandler): () => void
   return () => chrome.storage.onChanged.removeListener(handler)
 }
 
-// WXT storage watch helpers for specific keys
 export function watchCollectionsIndex(cb: (ids: string[] | null) => void): () => void {
-  return storage.watch<string[]>(COLLECTIONS_INDEX_KEY as `sync:${string}`, cb)
+  return storage.watch<string[]>(COLLECTIONS_INDEX_KEY as `local:${string}`, cb)
 }
 
 export function watchBoardsIndex(cb: (ids: string[] | null) => void): () => void {
-  return storage.watch<string[]>(BOARDS_INDEX_KEY as `sync:${string}`, cb)
+  return storage.watch<string[]>(BOARDS_INDEX_KEY as `local:${string}`, cb)
 }
 
 export function watchNotesIndex(cb: (ids: string[] | null) => void): () => void {
-  return storage.watch<string[]>(NOTES_INDEX_KEY as `sync:${string}`, cb)
+  return storage.watch<string[]>(NOTES_INDEX_KEY as `local:${string}`, cb)
 }
 
 export function watchSettings(cb: (settings: Settings | null) => void): () => void {
-  return storage.watch<Settings>(SETTINGS_KEY as `sync:${string}`, cb)
+  return storage.watch<Settings>(SETTINGS_KEY as `local:${string}`, cb)
 }
