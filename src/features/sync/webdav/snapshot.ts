@@ -55,7 +55,7 @@ export function detectConflicts(
   local: SyncSnapshot,
   remote: SyncSnapshot,
   lastSyncAt: number,
-  lastLocalChangeAt = 0,
+  _lastLocalChangeAt = 0,
 ): ConflictRecord[] {
   const conflicts: ConflictRecord[] = []
   const now = Date.now()
@@ -90,22 +90,6 @@ export function detectConflicts(
   check('collection', local.collections, remote.collections)
   check('note', local.notes, remote.notes)
 
-  const localSettings = JSON.stringify(local.settings)
-  const remoteSettings = JSON.stringify(remote.settings)
-  if (
-    lastLocalChangeAt > lastSyncAt &&
-    remote.exportedAt > lastSyncAt &&
-    localSettings !== remoteSettings
-  ) {
-    conflicts.push({
-      key: STORAGE_KEYS.SETTINGS,
-      entityType: 'settings',
-      localValue: local.settings,
-      remoteValue: remote.settings,
-      detectedAt: now,
-    })
-  }
-
   return conflicts
 }
 
@@ -121,7 +105,8 @@ export function hasLocalChangesSince(
 
 /**
  * Replace local storage with the remote snapshot (authoritative pull).
- * Ensures indexes and board.collectionIds stay consistent across devices.
+ * Writes entity blobs before updating indexes so UI listeners never see an index
+ * pointing at keys that have not been written yet.
  */
 export async function applySnapshotReplace(remote: SyncSnapshot): Promise<void> {
   const [localBoards, localCollections, localNotes] = await Promise.all([
@@ -134,6 +119,29 @@ export async function applySnapshotReplace(remote: SyncSnapshot): Promise<void> 
   const remoteColIds = new Set(remote.collections.map((c) => c.id))
   const remoteNoteIds = new Set(remote.notes.map((n) => n.id))
 
+  for (const board of remote.boards) {
+    await storage.setItem(STORAGE_KEYS.BOARD(board.id), board)
+  }
+  for (const col of remote.collections) {
+    await storage.setItem(STORAGE_KEYS.COLLECTION(col.id), col)
+  }
+  for (const note of remote.notes) {
+    await storage.setItem(STORAGE_KEYS.NOTE(note.id), note)
+  }
+
+  await storage.setItem(
+    STORAGE_KEYS.BOARDS_INDEX,
+    remote.boards.map((b) => b.id),
+  )
+  await storage.setItem(
+    STORAGE_KEYS.COLLECTIONS_INDEX,
+    remote.collections.map((c) => c.id),
+  )
+  await storage.setItem(
+    STORAGE_KEYS.NOTES_INDEX,
+    remote.notes.map((n) => n.id),
+  )
+
   for (const board of localBoards) {
     if (!remoteBoardIds.has(board.id)) await deleteBoard(board.id)
   }
@@ -142,30 +150,6 @@ export async function applySnapshotReplace(remote: SyncSnapshot): Promise<void> 
   }
   for (const note of localNotes) {
     if (!remoteNoteIds.has(note.id)) await deleteNote(note.id)
-  }
-
-  await storage.setItem(
-    STORAGE_KEYS.BOARDS_INDEX,
-    remote.boards.map((b) => b.id),
-  )
-  for (const board of remote.boards) {
-    await storage.setItem(STORAGE_KEYS.BOARD(board.id), board)
-  }
-
-  await storage.setItem(
-    STORAGE_KEYS.COLLECTIONS_INDEX,
-    remote.collections.map((c) => c.id),
-  )
-  for (const col of remote.collections) {
-    await storage.setItem(STORAGE_KEYS.COLLECTION(col.id), col)
-  }
-
-  await storage.setItem(
-    STORAGE_KEYS.NOTES_INDEX,
-    remote.notes.map((n) => n.id),
-  )
-  for (const note of remote.notes) {
-    await storage.setItem(STORAGE_KEYS.NOTE(note.id), note)
   }
 
   await setSettings({ ...DEFAULT_SETTINGS, ...remote.settings })

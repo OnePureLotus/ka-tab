@@ -154,6 +154,20 @@ export async function pull(): Promise<{ ok: boolean; error?: string }> {
 
     const remote = parseSnapshot(raw)
     const local = await buildSnapshot(meta.deviceId)
+    const localModified = hasLocalChangesSince(meta.lastSyncAt, local, meta.lastLocalChangeAt)
+
+    if (!localModified && remote.exportedAt <= meta.lastSyncAt) {
+      setPhase('idle')
+      runtimeStatus.lastDirection = 'pull'
+      return { ok: true }
+    }
+
+    if (localModified && remote.exportedAt <= local.exportedAt) {
+      setPhase('idle')
+      runtimeStatus.lastDirection = 'pull'
+      return { ok: true }
+    }
+
     const conflicts = detectConflicts(local, remote, meta.lastSyncAt, meta.lastLocalChangeAt)
 
     if (conflicts.length > 0) {
@@ -205,7 +219,7 @@ export async function push(): Promise<{ ok: boolean; error?: string }> {
     const local = await buildSnapshot(meta.deviceId)
     const rawRemote = await downloadSnapshot(config)
 
-    if (rawRemote) {
+    if (rawRemote && meta.lastSyncAt > 0) {
       const remote = parseSnapshot(rawRemote)
       const localModified = hasLocalChangesSince(meta.lastSyncAt, local, meta.lastLocalChangeAt)
       if (remote.exportedAt > meta.lastSyncAt && localModified) {

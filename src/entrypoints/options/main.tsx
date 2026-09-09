@@ -5,10 +5,11 @@ import type { WebDavConfig } from '@/features/sync/webdav/types'
 import { DEFAULT_WEBDAV_CONFIG } from '@/features/sync/webdav/types'
 import type { SyncRuntimeStatus } from '@/features/sync/webdav/types'
 import { sendCommand } from '@/shared/messaging/client'
+import { watchSettings } from '@/shared/messaging/storage-sync'
 import { MessageType } from '@/shared/messaging/types'
 import { getAllCollections, getAllNotes, getSettings, setSettings } from '@/shared/storage/client'
 import type { Component } from 'solid-js'
-import { For, Show, createSignal, onMount } from 'solid-js'
+import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { render } from 'solid-js/web'
 
 function applyTheme(theme: Settings['theme']) {
@@ -85,6 +86,12 @@ const OptionsApp: Component = () => {
 
   type SyncCommandResult = { ok: boolean; data?: unknown; error?: string }
 
+  async function refreshSettingsFromStorage() {
+    const s = await getSettings()
+    setLocalSettings(s)
+    applyTheme(s.theme)
+  }
+
   onMount(async () => {
     const [s, cols, notes, configRes] = await Promise.all([
       getSettings(),
@@ -98,6 +105,21 @@ const OptionsApp: Component = () => {
     applyTheme(s.theme)
     if (configRes.ok && configRes.data) setWebdav(configRes.data as WebDavConfig)
     void refreshSyncStatus()
+
+    const unwatchSettings = watchSettings((updated) => {
+      if (!updated) return
+      setLocalSettings(updated)
+      applyTheme(updated.theme)
+    })
+    onCleanup(unwatchSettings)
+
+    const onSyncApplied = (message: { type?: string }) => {
+      if (message?.type !== MessageType.SYNC_DATA_APPLIED) return
+      void refreshSettingsFromStorage()
+      void refreshCounts()
+    }
+    chrome.runtime.onMessage.addListener(onSyncApplied)
+    onCleanup(() => chrome.runtime.onMessage.removeListener(onSyncApplied))
   })
 
   async function refreshSyncStatus() {
@@ -240,6 +262,7 @@ const OptionsApp: Component = () => {
           setSyncMessage(String(result.error ?? 'Import failed'))
           return
         }
+        await refreshSettingsFromStorage()
         await refreshCounts()
         setSyncMessage(
           `Import completed (${result.stats.boards} boards, ${result.stats.collections} collections, ${result.stats.notes} notes)`,

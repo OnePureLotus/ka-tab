@@ -76,11 +76,13 @@ function upsertCollectionInStore(collection: Collection): void {
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
-export async function loadCollections(): Promise<void> {
+export async function loadCollections(options?: { replace?: boolean }): Promise<void> {
   setCollectionsStore('loading', true)
   try {
     const items = await getAllCollections()
-    const merged = mergeCollectionsFromStorage(items, collectionsStore.items)
+    const merged = options?.replace
+      ? normalizeCollectionsById(items)
+      : mergeCollectionsFromStorage(items, collectionsStore.items)
     setCollectionsStore(
       produce((s) => {
         s.items = merged

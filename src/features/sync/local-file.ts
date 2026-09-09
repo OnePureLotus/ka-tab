@@ -43,6 +43,19 @@ export function parseImportSnapshot(raw: string, deviceId: string): SyncSnapshot
   }
 }
 
+export function stampSnapshotForImport(snapshot: SyncSnapshot, deviceId: string): SyncSnapshot {
+  const now = Date.now()
+  return {
+    schemaVersion: 1,
+    exportedAt: now,
+    deviceId,
+    boards: snapshot.boards.map((b) => ({ ...b, updatedAt: now })),
+    collections: snapshot.collections.map((c) => ({ ...c, updatedAt: now })),
+    notes: snapshot.notes.map((n) => ({ ...n, updatedAt: now })),
+    settings: { ...DEFAULT_SETTINGS, ...snapshot.settings },
+  }
+}
+
 export async function exportSnapshotJson(): Promise<{ json: string; filename: string }> {
   const meta = await ensureSyncMeta()
   const snapshot = await buildSnapshot(meta.deviceId)
@@ -58,15 +71,17 @@ export type ImportSnapshotResult =
 export async function importSnapshotJson(raw: string): Promise<ImportSnapshotResult> {
   try {
     const meta = await ensureSyncMeta()
-    const snapshot = parseImportSnapshot(raw, meta.deviceId)
+    const parsed = parseImportSnapshot(raw, meta.deviceId)
+    const snapshot = stampSnapshotForImport(parsed, meta.deviceId)
 
     await runApplyingRemote(() => applySnapshotReplace(snapshot))
 
+    const now = Date.now()
     await setSyncMeta({
       ...meta,
-      lastSyncAt: snapshot.exportedAt,
-      lastRemoteExportedAt: snapshot.exportedAt,
-      lastLocalChangeAt: snapshot.exportedAt,
+      lastSyncAt: 0,
+      lastRemoteExportedAt: meta.lastRemoteExportedAt,
+      lastLocalChangeAt: now,
       pendingConflicts: [],
     })
 

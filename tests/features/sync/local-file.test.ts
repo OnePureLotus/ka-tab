@@ -86,6 +86,34 @@ describe('parseImportSnapshot', () => {
       'Unsupported snapshot schema version',
     )
   })
+
+  it('stamps imported entities with a fresh updatedAt', async () => {
+    const { stampSnapshotForImport } = await import('@/features/sync/local-file')
+    const before = Date.now()
+    const stamped = stampSnapshotForImport(
+      {
+        schemaVersion: 1,
+        exportedAt: 1,
+        deviceId: 'old',
+        boards: [
+          {
+            id: 'b1',
+            name: 'B',
+            collectionIds: [],
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
+        collections: [],
+        notes: [],
+        settings: DEFAULT_SETTINGS,
+      },
+      'dev-1',
+    )
+    expect(stamped.deviceId).toBe('dev-1')
+    expect(stamped.exportedAt).toBeGreaterThanOrEqual(before)
+    expect(stamped.boards[0]?.updatedAt).toBe(stamped.exportedAt)
+  })
 })
 
 describe('exportSnapshotJson', () => {
@@ -145,7 +173,7 @@ describe('importSnapshotJson', () => {
     expect(applySnapshotReplace).toHaveBeenCalledOnce()
     expect(setSyncMeta).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastSyncAt: 3000,
+        lastSyncAt: 0,
         pendingConflicts: [],
       }),
     )

@@ -60,7 +60,7 @@ describe('detectConflicts', () => {
     expect(conflicts[0]?.key).toBe('local:katab:collection:c1')
   })
 
-  it('does not flag settings conflict when only remote changed', () => {
+  it('does not flag settings-only differences as conflicts', () => {
     const local = {
       ...emptySnapshot(2000),
       settings: { ...DEFAULT_SETTINGS, theme: 'light' as const },
