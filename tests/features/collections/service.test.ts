@@ -5,6 +5,7 @@ import {
   removeSiteFromCollection,
   renameCollection,
   reorderCollections,
+  reorderSitesById,
   reorderSitesInCollection,
   updateCollectionColor,
   updateSiteInCollection,
@@ -273,6 +274,37 @@ describe('reorderSitesInCollection', () => {
     const col = makeABC()
     const result = reorderSitesInCollection(col, 0, 1)
     expect(result.hash).not.toBe(col.hash)
+  })
+})
+
+describe('reorderSitesById', () => {
+  function makeABC(): Collection {
+    let col = createCollection('Test', '#1a73e8', BOARD_ID)
+    col = addSiteToCollection(col, makeSite({ url: 'https://a.com', title: 'A' }))
+    col = addSiteToCollection(col, makeSite({ url: 'https://b.com', title: 'B' }))
+    col = addSiteToCollection(col, makeSite({ url: 'https://c.com', title: 'C' }))
+    return col
+  }
+
+  it('C-29a: moves site A after C by id', () => {
+    const col = makeABC()
+    const aId = col.sites[0]!.id
+    const cId = col.sites[2]!.id
+    const result = reorderSitesById(col, aId, cId)
+    expect(result.sites.map((s) => s.title)).toEqual(['B', 'C', 'A'])
+  })
+
+  it('C-29b: same id returns unchanged collection', () => {
+    const col = makeABC()
+    const id = col.sites[0]!.id
+    const result = reorderSitesById(col, id, id)
+    expect(result).toBe(col)
+  })
+
+  it('C-29c: unknown id returns unchanged collection', () => {
+    const col = makeABC()
+    const result = reorderSitesById(col, 'missing', col.sites[0]!.id)
+    expect(result).toBe(col)
   })
 })
 

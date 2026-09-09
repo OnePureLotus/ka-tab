@@ -92,6 +92,17 @@ export function reorderSitesInCollection(
   return { ...collection, sites, updatedAt, hash }
 }
 
+export function reorderSitesById(
+  collection: Collection,
+  fromSiteId: string,
+  toSiteId: string,
+): Collection {
+  const fromIndex = collection.sites.findIndex((s) => s.id === fromSiteId)
+  const toIndex = collection.sites.findIndex((s) => s.id === toSiteId)
+  if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return collection
+  return reorderSitesInCollection(collection, fromIndex, toIndex)
+}
+
 export function renameCollection(collection: Collection, name: string): Collection {
   const updatedAt = Date.now()
   const hash = hashContentSync({ name, color: collection.color, sites: collection.sites })

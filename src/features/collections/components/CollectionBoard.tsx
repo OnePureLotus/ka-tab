@@ -73,10 +73,10 @@ const SortableCard: Component<SortableCardProps> = (props) => {
         opacity: sortable.isActiveDraggable ? 0.5 : 1,
         transition: 'transform 150ms ease-out',
       }}
-      {...sortable.dragActivators}
     >
       <CollectionCard
         collection={props.collection}
+        headerDragActivators={sortable.dragActivators}
         onRename={props.onRename}
         onChangeColor={props.onChangeColor}
         onDelete={props.onDelete}

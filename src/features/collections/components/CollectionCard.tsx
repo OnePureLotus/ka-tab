@@ -1,14 +1,15 @@
 import type { Component } from 'solid-js'
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { Show, createMemo, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { COLLECTION_CARD_MIN_HEIGHT } from '../constants'
 import { validateSiteLimit } from '../service'
 import { collectionsStore } from '../store'
 import type { Collection } from '../types'
-import CollectionSiteRow from './CollectionSiteRow'
+import CollectionSiteList from './CollectionSiteList'
 
 interface CollectionCardProps {
   collection: Collection
+  headerDragActivators?: Record<string, unknown>
   onRename: (id: string, name: string) => void
   onChangeColor: (id: string, color: string) => void
   onDelete: (id: string) => void
@@ -116,7 +117,8 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
     >
       {/* Tinted Header */}
       <div
-        style={`height: 52px; padding: 0 14px; display: flex; align-items: center; gap: 10px; background: color-mix(in srgb, ${accentColor()} 15%, var(--katab-color-surface)); flex-shrink: 0;`}
+        {...(props.headerDragActivators ?? {})}
+        style={`height: 52px; padding: 0 14px; display: flex; align-items: center; gap: 10px; background: color-mix(in srgb, ${accentColor()} 15%, var(--katab-color-surface)); flex-shrink: 0; ${props.headerDragActivators ? 'cursor: grab;' : ''}`}
       >
         <div
           style={`width: 12px; height: 12px; border-radius: 6px; background: ${accentColor()}; flex-shrink: 0;`}
@@ -249,17 +251,14 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
 
       {/* Sites list */}
       <div style="padding: 6px 0;">
-        <For each={collection().sites}>
-          {(site) => (
-            <CollectionSiteRow
-              site={site}
-              collectionColor={collection().color}
-              variant="card"
-              onEdit={() => props.onEditSite(collection().id, site.id)}
-              onDelete={() => props.onDeleteSite(collection().id, site.id)}
-            />
-          )}
-        </For>
+        <CollectionSiteList
+          collection={collection()}
+          sites={collection().sites}
+          variant="card"
+          collectionColor={collection().color}
+          onEdit={(siteId) => props.onEditSite(collection().id, siteId)}
+          onDelete={(siteId) => props.onDeleteSite(collection().id, siteId)}
+        />
       </div>
 
       {/* Footer */}
