@@ -65,6 +65,7 @@ const CollectionModal: Component<CollectionModalProps> = (props) => {
               {(site, idx) => (
                 <CollectionSiteRow
                   site={site}
+                  collectionColor={props.collection?.color ?? ''}
                   variant="modal"
                   draggable
                   dragOver={dragOver() === idx()}

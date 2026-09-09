@@ -25,6 +25,8 @@ global.chrome = {
     query: vi.fn(),
     create: vi.fn(),
     group: vi.fn(),
+    remove: vi.fn(),
+    update: vi.fn(),
     onCreated: { addListener: vi.fn() },
     onRemoved: { addListener: vi.fn() },
     onUpdated: { addListener: vi.fn() },
@@ -37,5 +39,6 @@ global.chrome = {
   sessions: {
     restore: vi.fn(),
     getRecentlyClosed: vi.fn(),
+    forgetClosedTab: vi.fn(),
   },
 } as unknown as typeof chrome

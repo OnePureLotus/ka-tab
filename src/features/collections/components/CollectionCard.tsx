@@ -253,6 +253,7 @@ const CollectionCard: Component<CollectionCardProps> = (props) => {
           {(site) => (
             <CollectionSiteRow
               site={site}
+              collectionColor={collection().color}
               variant="card"
               onEdit={() => props.onEditSite(collection().id, site.id)}
               onDelete={() => props.onDeleteSite(collection().id, site.id)}

@@ -1,9 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mapTab, mapSession } from '@/background/tab-snapshot.service'
+import { mapSession, mapTab } from '@/background/tab-snapshot.service'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Prevent real port/broadcast communication
 vi.mock('@/background/port-manager', () => ({
   cacheAndBroadcastSnapshot: vi.fn(),
+  setTabTrayConnectHandler: vi.fn(),
+}))
+
+vi.mock('@/features/tab-tray/dismissed-recent', () => ({
+  pruneDismissedSessionIds: vi.fn().mockResolvedValue([]),
+  isRecentDismissed: vi.fn().mockReturnValue(false),
 }))
 
 beforeEach(() => {
@@ -93,6 +99,15 @@ describe('mapSession', () => {
     const entry = mapSession(session)
     expect(entry?.favIconUrl).toBeUndefined()
   })
+
+  it('TS-11: session.tab 含 windowId → entry.windowId 写入', () => {
+    const session: chrome.sessions.Session = {
+      lastModified: 1700000000,
+      tab: { title: 'T', url: 'https://t.com', sessionId: 'abc', windowId: 99 } as chrome.tabs.Tab,
+    }
+    const entry = mapSession(session)
+    expect(entry?.windowId).toBe(99)
+  })
 })
 
 // ─── TS-08 to TS-10: buildAndBroadcastSnapshot（通过 initTabSnapshot 间接测试）
@@ -102,7 +117,15 @@ describe('initTabSnapshot', () => {
     const { cacheAndBroadcastSnapshot } = await import('@/background/port-manager')
 
     vi.mocked(chrome.tabs.query).mockResolvedValue([
-      { id: 1, title: 'Tab1', url: 'https://t1.com', favIconUrl: '', windowId: 1, active: false, pinned: false } as chrome.tabs.Tab,
+      {
+        id: 1,
+        title: 'Tab1',
+        url: 'https://t1.com',
+        favIconUrl: '',
+        windowId: 1,
+        active: false,
+        pinned: false,
+      } as chrome.tabs.Tab,
     ])
     vi.mocked(chrome.sessions.getRecentlyClosed).mockResolvedValue([
       // valid tab session
@@ -127,9 +150,33 @@ describe('initTabSnapshot', () => {
     vi.mocked(cacheAndBroadcastSnapshot).mockClear()
 
     vi.mocked(chrome.tabs.query).mockResolvedValue([
-      { id: 1, title: 'A', url: 'https://a.com', favIconUrl: '', windowId: 1, active: false, pinned: false } as chrome.tabs.Tab,
-      { id: 2, title: 'B', url: 'https://b.com', favIconUrl: '', windowId: 1, active: true, pinned: false } as chrome.tabs.Tab,
-      { id: 3, title: 'C', url: 'https://c.com', favIconUrl: '', windowId: 1, active: false, pinned: true } as chrome.tabs.Tab,
+      {
+        id: 1,
+        title: 'A',
+        url: 'https://a.com',
+        favIconUrl: '',
+        windowId: 1,
+        active: false,
+        pinned: false,
+      } as chrome.tabs.Tab,
+      {
+        id: 2,
+        title: 'B',
+        url: 'https://b.com',
+        favIconUrl: '',
+        windowId: 1,
+        active: true,
+        pinned: false,
+      } as chrome.tabs.Tab,
+      {
+        id: 3,
+        title: 'C',
+        url: 'https://c.com',
+        favIconUrl: '',
+        windowId: 1,
+        active: false,
+        pinned: true,
+      } as chrome.tabs.Tab,
     ])
     vi.mocked(chrome.sessions.getRecentlyClosed).mockResolvedValue([])
 

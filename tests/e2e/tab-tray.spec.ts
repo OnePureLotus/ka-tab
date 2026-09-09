@@ -10,7 +10,7 @@
  *  - Section labels: texts "Open Tabs" / "Recently Closed" (case-insensitive)
  *  - "Drag to card" badge: exactly "Drag to card"
  */
-import { test, expect } from './fixtures'
+import { expect, test } from './fixtures'
 
 test.describe('Tab Tray Panel', () => {
   // E2E-TT-01: panel is always rendered
@@ -19,14 +19,18 @@ test.describe('Tab Tray Panel', () => {
   })
 
   // E2E-TT-02: heading and "Drag to card" badge are visible
-  test('E2E-TT-02: "Tab Tray" heading and "Drag to card" badge are visible', async ({ newtabPage: page }) => {
+  test('E2E-TT-02: "Tab Tray" heading and "Drag to card" badge are visible', async ({
+    newtabPage: page,
+  }) => {
     const panel = page.locator('.tab-tray-panel')
     await expect(panel.getByText('Tab Tray')).toBeVisible()
     await expect(panel.getByText('Drag to card')).toBeVisible()
   })
 
   // E2E-TT-03: loading skeleton disappears within a reasonable time
-  test('E2E-TT-03: loading skeleton resolves within 2 s and shows tab sections', async ({ newtabPage: page }) => {
+  test('E2E-TT-03: loading skeleton resolves within 2 s and shows tab sections', async ({
+    newtabPage: page,
+  }) => {
     const panel = page.locator('.tab-tray-panel')
     // After max 2 s the loading state (connecting = true) ends
     await page.waitForTimeout(600)
@@ -35,7 +39,9 @@ test.describe('Tab Tray Panel', () => {
   })
 
   // E2E-TT-04: "Recently Closed" section is visible after load
-  test('E2E-TT-04: "Recently Closed" section header is visible after load', async ({ newtabPage: page }) => {
+  test('E2E-TT-04: "Recently Closed" section header is visible after load', async ({
+    newtabPage: page,
+  }) => {
     const panel = page.locator('.tab-tray-panel')
     await page.waitForTimeout(600)
     // Section header: "Recently closed (N)"
@@ -43,7 +49,9 @@ test.describe('Tab Tray Panel', () => {
   })
 
   // E2E-TT-05: Open Tabs section can be collapsed and re-expanded
-  test('E2E-TT-05: clicking "Current tabs" section header toggles its contents', async ({ newtabPage: page }) => {
+  test('E2E-TT-05: clicking "Current tabs" section header toggles its contents', async ({
+    newtabPage: page,
+  }) => {
     const panel = page.locator('.tab-tray-panel')
     await page.waitForTimeout(600)
 
@@ -56,5 +64,27 @@ test.describe('Tab Tray Panel', () => {
     await header.click()
     // Header is still visible
     await expect(header).toBeVisible()
+  })
+
+  // E2E-TT-06: hover on a current tab row shows remove button (no URL tooltip on row)
+  test('E2E-TT-06: hover shows remove button on current tab row without URL title attribute', async ({
+    extContext,
+    newtabPage: page,
+  }) => {
+    const otherPage = await extContext.newPage()
+    await otherPage.goto('https://example.com')
+    await page.waitForTimeout(800)
+
+    const panel = page.locator('.tab-tray-panel')
+    const row = panel.locator('[draggable="true"]').first()
+    await expect(row).toBeVisible({ timeout: 5000 })
+
+    const rowTitle = await row.getAttribute('title')
+    expect(rowTitle).toBeNull()
+
+    await row.hover()
+    await expect(panel.getByTestId('tab-tray-remove')).toBeVisible()
+
+    await otherPage.close()
   })
 })
