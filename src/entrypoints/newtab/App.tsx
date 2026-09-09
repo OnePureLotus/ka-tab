@@ -59,7 +59,7 @@ const App: Component = () => {
     const onSyncApplied = (message: { type?: string }) => {
       if (message?.type !== MessageType.SYNC_DATA_APPLIED) return
       void loadBoards()
-      void loadCollections()
+      void loadCollections({ replace: true })
       void loadNotes()
     }
     chrome.runtime.onMessage.addListener(onSyncApplied)
