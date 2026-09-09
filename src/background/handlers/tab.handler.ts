@@ -1,5 +1,11 @@
+import { refreshTabSnapshot } from '@/background/tab-snapshot.service'
+import { dismissRecentSession } from '@/features/tab-tray/dismissed-recent'
 import type { MessageType } from '@/shared/messaging/types'
-import type { TabFocusPayload } from '@/shared/messaging/types'
+import type {
+  TabClosePayload,
+  TabDismissRecentPayload,
+  TabFocusPayload,
+} from '@/shared/messaging/types'
 
 export function registerTabHandlers(
   message: { type: MessageType; payload: unknown },
@@ -24,6 +30,22 @@ export function registerTabHandlers(
     case 'TAB_FOCUS': {
       const { tabId } = message.payload as TabFocusPayload
       chrome.tabs.update(tabId, { active: true }, () => sendResponse({ ok: true, data: undefined }))
+      return true
+    }
+    case 'TAB_CLOSE': {
+      const { tabId } = message.payload as TabClosePayload
+      chrome.tabs.remove(tabId, () => sendResponse({ ok: true, data: undefined }))
+      return true
+    }
+    case 'TAB_DISMISS_RECENT': {
+      const { sessionId } = message.payload as TabDismissRecentPayload
+      dismissRecentSession(sessionId)
+        .then(() => refreshTabSnapshot())
+        .then(() => sendResponse({ ok: true, data: undefined }))
+        .catch((err) => {
+          console.error('[KaTab] dismiss recent failed', err)
+          sendResponse({ ok: false, error: { type: 'UNKNOWN', message: String(err) } })
+        })
       return true
     }
     default:

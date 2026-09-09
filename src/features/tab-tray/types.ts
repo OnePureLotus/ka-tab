@@ -10,6 +10,7 @@ export interface TabEntry {
 
 export interface RecentlyClosedEntry {
   sessionId?: string
+  windowId?: number
   title: string
   url: string
   favIconUrl?: string

@@ -1,5 +1,6 @@
-import { cacheAndBroadcastSnapshot } from './port-manager'
-import type { TabEntry, RecentlyClosedEntry } from '@/features/tab-tray/types'
+import { isRecentDismissed, pruneDismissedSessionIds } from '@/features/tab-tray/dismissed-recent'
+import type { RecentlyClosedEntry, TabEntry } from '@/features/tab-tray/types'
+import { cacheAndBroadcastSnapshot, setTabTrayConnectHandler } from './port-manager'
 
 export function mapTab(tab: chrome.tabs.Tab): TabEntry {
   return {
@@ -21,29 +22,39 @@ export function mapSession(session: chrome.sessions.Session): RecentlyClosedEntr
       lastModified: session.lastModified,
     }
     if (session.tab.sessionId !== undefined) entry.sessionId = session.tab.sessionId
+    if (session.tab.windowId !== undefined) entry.windowId = session.tab.windowId
     if (session.tab.favIconUrl !== undefined) entry.favIconUrl = session.tab.favIconUrl
     return entry
   }
   return null
 }
 
-async function buildAndBroadcastSnapshot(): Promise<void> {
+export async function refreshTabSnapshot(): Promise<void> {
   const [tabs, sessions] = await Promise.all([
     chrome.tabs.query({}),
     chrome.sessions.getRecentlyClosed({ maxResults: 25 }),
   ])
 
   const openTabs = tabs.map(mapTab)
-  const recentlyClosed = sessions
-    .map(mapSession)
-    .filter((e): e is RecentlyClosedEntry => e !== null)
+  const mapped = sessions.map(mapSession).filter((e): e is RecentlyClosedEntry => e !== null)
+
+  const activeSessionIds = mapped
+    .map((e) => e.sessionId)
+    .filter((id): id is string => id !== undefined)
+
+  const dismissed = await pruneDismissedSessionIds(activeSessionIds)
+  const recentlyClosed = mapped.filter((e) => !isRecentDismissed(e, dismissed))
 
   cacheAndBroadcastSnapshot({ openTabs, recentlyClosed })
 }
 
 export function initTabSnapshot(): void {
+  setTabTrayConnectHandler(() => {
+    refreshTabSnapshot().catch(console.error)
+  })
+
   const pushSnapshot = () => {
-    buildAndBroadcastSnapshot().catch(console.error)
+    refreshTabSnapshot().catch(console.error)
   }
 
   chrome.tabs.onCreated.addListener(pushSnapshot)

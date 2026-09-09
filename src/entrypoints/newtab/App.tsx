@@ -15,6 +15,7 @@ import ConflictBanner from '@/features/sync/components/ConflictBanner'
 import ConflictModal from '@/features/sync/components/ConflictModal'
 import { loadConflicts, watchConflicts } from '@/features/sync/sync.store'
 import TabTray from '@/features/tab-tray/components/TabTray'
+import { connectTabTray } from '@/features/tab-tray/tab-tray.port'
 import Toast from '@/shared/components/Toast'
 import { sendCommand } from '@/shared/messaging/client'
 import { watchSettings } from '@/shared/messaging/storage-sync'
@@ -42,6 +43,9 @@ const App: Component = () => {
   useCollectionsStorageSync()
 
   onMount(async () => {
+    const disconnectTabTray = connectTabTray()
+    onCleanup(disconnectTabTray)
+
     loadConflicts()
     const unwatchConflicts = watchConflicts()
     onCleanup(unwatchConflicts)

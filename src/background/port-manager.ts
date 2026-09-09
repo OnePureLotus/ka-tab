@@ -3,6 +3,11 @@ import { MessageType } from '@/shared/messaging/types'
 
 const activePorts: Set<chrome.runtime.Port> = new Set()
 let latestSnapshot: TabListUpdatedPayload | null = null
+let onTabTrayConnect: (() => void) | null = null
+
+export function setTabTrayConnectHandler(handler: () => void): void {
+  onTabTrayConnect = handler
+}
 
 export function initPortManager(): void {
   chrome.runtime.onConnect.addListener((port) => {
@@ -18,6 +23,8 @@ export function initPortManager(): void {
         activePorts.delete(port)
         return
       }
+    } else {
+      onTabTrayConnect?.()
     }
 
     port.onDisconnect.addListener(() => {

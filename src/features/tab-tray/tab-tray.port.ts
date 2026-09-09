@@ -1,7 +1,7 @@
-import { setTabTrayStore } from './store'
 import type { TabListUpdatedPayload } from '@/shared/messaging/types'
 import { MessageType } from '@/shared/messaging/types'
-import type { TabEntry, RecentlyClosedEntry } from './types'
+import { setTabTrayStore } from './store'
+import type { RecentlyClosedEntry, TabEntry } from './types'
 
 let port: chrome.runtime.Port | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -25,8 +25,6 @@ function connect() {
   try {
     port = chrome.runtime.connect({ name: 'tab-tray' })
     reconnectDelay = 1000
-
-    setTabTrayStore('connected', false) // wait for first message
 
     port.onMessage.addListener(onPortMessage)
 

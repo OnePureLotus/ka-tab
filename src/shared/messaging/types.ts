@@ -26,6 +26,8 @@ export const MessageType = {
   TAB_GET_CURRENT: 'TAB_GET_CURRENT',
   TAB_RESTORE: 'TAB_RESTORE',
   TAB_FOCUS: 'TAB_FOCUS',
+  TAB_CLOSE: 'TAB_CLOSE',
+  TAB_DISMISS_RECENT: 'TAB_DISMISS_RECENT',
 
   // Note commands
   NOTE_SAVE: 'NOTE_SAVE',
@@ -87,6 +89,14 @@ export type ResolveConflictPayload = SyncResolveConflictPayload
 
 export interface TabFocusPayload {
   tabId: number
+}
+
+export interface TabClosePayload {
+  tabId: number
+}
+
+export interface TabDismissRecentPayload {
+  sessionId: string
 }
 
 export interface TabListUpdatedPayload {
