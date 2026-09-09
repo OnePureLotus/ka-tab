@@ -7,14 +7,15 @@ import type { Site } from '../types'
 
 interface CollectionSiteRowProps {
   site: Site
-  collectionColor?: string
+  collectionColor?: string | undefined
   variant?: 'card' | 'modal'
+  sortable?: boolean
   dragOver?: boolean
   onEdit: () => void
   onDelete: () => void
   onOpen?: () => void
-  draggable?: boolean
-  onDragStart?: () => void
+  onDragHandleStart?: (e: DragEvent) => void
+  onDragEnd?: () => void
   onDragOver?: (e: DragEvent) => void
   onDragLeave?: () => void
   onDrop?: () => void
@@ -55,8 +56,7 @@ const CollectionSiteRow: Component<CollectionSiteRowProps> = (props) => {
     <div
       class="collection-site-row"
       data-open={isOpen() ? 'true' : 'false'}
-      draggable={props.draggable}
-      onDragStart={props.onDragStart}
+      data-site-id={props.site.id}
       onDragOver={props.onDragOver}
       onDragLeave={props.onDragLeave}
       onDrop={props.onDrop}
@@ -65,10 +65,15 @@ const CollectionSiteRow: Component<CollectionSiteRowProps> = (props) => {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Show when={variant() === 'modal'}>
+      <Show when={props.sortable}>
         <span
-          style="cursor: grab; color: var(--katab-color-text-secondary); font-size: 14px; flex-shrink: 0;"
+          data-testid="site-drag-handle"
+          draggable={true}
+          title="Drag to reorder"
+          style="cursor: grab; color: var(--katab-color-text-secondary); font-size: 14px; flex-shrink: 0; touch-action: none;"
           onClick={(e) => e.stopPropagation()}
+          onDragStart={(e) => props.onDragHandleStart?.(e)}
+          onDragEnd={() => props.onDragEnd?.()}
         >
           {String.fromCodePoint(0x2807)}
         </span>

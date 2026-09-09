@@ -1,10 +1,10 @@
 import Modal from '@/shared/components/Modal'
 import type { Component } from 'solid-js'
-import { For, Show, createMemo, createSignal } from 'solid-js'
-import { removeSiteFromCollection, reorderSitesInCollection } from '../service'
+import { createMemo, createSignal } from 'solid-js'
+import { removeSiteFromCollection } from '../service'
 import { updateCollection } from '../store'
 import type { Collection } from '../types'
-import CollectionSiteRow from './CollectionSiteRow'
+import CollectionSiteList from './CollectionSiteList'
 
 interface CollectionModalProps {
   open: boolean
@@ -17,8 +17,6 @@ interface CollectionModalProps {
 
 const CollectionModal: Component<CollectionModalProps> = (props) => {
   const [search, setSearch] = createSignal('')
-  const [dragging, setDragging] = createSignal<number | null>(null)
-  const [dragOver, setDragOver] = createSignal<number | null>(null)
 
   const filteredSites = createMemo(() => {
     const q = search().toLowerCase()
@@ -33,15 +31,6 @@ const CollectionModal: Component<CollectionModalProps> = (props) => {
     await updateCollection(updated)
   }
 
-  async function handleDrop(toIndex: number) {
-    const fromIndex = dragging()
-    if (fromIndex === null || !props.collection) return
-    const updated = reorderSitesInCollection(props.collection, fromIndex, toIndex)
-    await updateCollection(updated)
-    setDragging(null)
-    setDragOver(null)
-  }
-
   return (
     <Modal open={props.open} onClose={props.onClose} title={props.collection?.name ?? ''}>
       <div style="display: flex; flex-direction: column; gap: 16px; max-height: 70vh;">
@@ -53,35 +42,17 @@ const CollectionModal: Component<CollectionModalProps> = (props) => {
           style="padding: 8px 12px; border: 1px solid var(--katab-color-border); border-radius: 8px; font-size: 13px; outline: none; background: var(--katab-color-surface); color: var(--katab-color-text-primary);"
         />
         <div style="overflow-y: auto; flex: 1; border: 1px solid var(--katab-color-border); border-radius: 8px;">
-          <Show
-            when={filteredSites().length > 0}
-            fallback={
-              <div style="padding: 24px; text-align: center; color: var(--katab-color-text-secondary); font-size: 13px;">
-                No sites found
-              </div>
-            }
-          >
-            <For each={filteredSites()}>
-              {(site, idx) => (
-                <CollectionSiteRow
-                  site={site}
-                  collectionColor={props.collection?.color ?? ''}
-                  variant="modal"
-                  draggable
-                  dragOver={dragOver() === idx()}
-                  onDragStart={() => setDragging(idx())}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setDragOver(idx())
-                  }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={() => handleDrop(idx())}
-                  onEdit={() => props.collection && props.onEditSite(props.collection.id, site.id)}
-                  onDelete={() => handleDeleteSite(site.id)}
-                />
-              )}
-            </For>
-          </Show>
+          {props.collection && (
+            <CollectionSiteList
+              collection={props.collection}
+              sites={filteredSites()}
+              variant="modal"
+              collectionColor={props.collection.color}
+              searchQuery={search()}
+              onEdit={(siteId) => props.onEditSite(props.collection!.id, siteId)}
+              onDelete={handleDeleteSite}
+            />
+          )}
         </div>
         <div style="display: flex; gap: 10px; justify-content: space-between; padding-top: 4px;">
           <button
