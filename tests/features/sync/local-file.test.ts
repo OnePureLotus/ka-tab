@@ -9,24 +9,40 @@ vi.mock('@/features/sync/webdav/engine', () => ({
     lastRemoteExportedAt: 0,
     lastLocalChangeAt: 0,
     pendingConflicts: [],
+    dirty: false,
+    lastRemoteEtag: null,
+    lastRemoteRevision: 0,
+    settingsUpdatedAt: 0,
+    tombstones: [],
   })),
   runApplyingRemote: vi.fn(async (fn: () => Promise<void>) => fn()),
 }))
 
 vi.mock('@/features/sync/webdav/snapshot', () => ({
   buildSnapshot: vi.fn(async (deviceId: string) => ({
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
+    revision: 0,
     exportedAt: 2000,
     deviceId,
     boards: [{ id: 'b1', name: 'Board', collectionIds: [], createdAt: 1, updatedAt: 1 }],
     collections: [],
     notes: [{ id: 'n1', content: 'note', createdAt: 1, updatedAt: 1 }],
     settings: { ...DEFAULT_SETTINGS },
+    settingsUpdatedAt: 0,
+    tombstones: [],
   })),
   parseSnapshot: vi.fn((raw: string) => {
     const data = JSON.parse(raw)
-    if (data.schemaVersion !== 1) throw new Error('Unsupported snapshot schema version')
-    return data
+    if (data.schemaVersion !== 1 && data.schemaVersion !== 2) {
+      throw new Error('Unsupported snapshot schema version')
+    }
+    return {
+      ...data,
+      schemaVersion: 2,
+      revision: data.revision ?? 0,
+      tombstones: data.tombstones ?? [],
+      settingsUpdatedAt: data.settingsUpdatedAt ?? 0,
+    }
   }),
   applySnapshotReplace: vi.fn(async () => {}),
 }))
@@ -47,7 +63,7 @@ describe('parseImportSnapshot', () => {
       settings: DEFAULT_SETTINGS,
     })
     const snapshot = parseImportSnapshot(raw, 'local-device')
-    expect(snapshot.schemaVersion).toBe(1)
+    expect(snapshot.schemaVersion).toBe(2)
     expect(snapshot.deviceId).toBe('remote')
   })
 
@@ -70,7 +86,7 @@ describe('parseImportSnapshot', () => {
       settings: { theme: 'dark' },
     })
     const snapshot = parseImportSnapshot(raw, 'local-device')
-    expect(snapshot.schemaVersion).toBe(1)
+    expect(snapshot.schemaVersion).toBe(2)
     expect(snapshot.deviceId).toBe('local-device')
     expect(snapshot.collections).toHaveLength(1)
     expect(snapshot.settings.theme).toBe('dark')
@@ -81,7 +97,7 @@ describe('parseImportSnapshot', () => {
   })
 
   it('throws on unsupported schema version in legacy object', () => {
-    const raw = JSON.stringify({ schemaVersion: 2, collections: [] })
+    const raw = JSON.stringify({ schemaVersion: 3, collections: [] })
     expect(() => parseImportSnapshot(raw, 'local-device')).toThrow(
       'Unsupported snapshot schema version',
     )
@@ -92,9 +108,12 @@ describe('parseImportSnapshot', () => {
     const before = Date.now()
     const stamped = stampSnapshotForImport(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
+        revision: 0,
         exportedAt: 1,
         deviceId: 'old',
+        settingsUpdatedAt: 0,
+        tombstones: [],
         boards: [
           {
             id: 'b1',
@@ -127,7 +146,7 @@ describe('exportSnapshotJson', () => {
     const { exportSnapshotJson } = await import('@/features/sync/local-file')
     const result = await exportSnapshotJson()
     const parsed = JSON.parse(result.json)
-    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.schemaVersion).toBe(2)
     expect(parsed.boards).toHaveLength(1)
     expect(parsed.notes).toHaveLength(1)
     expect(result.filename).toMatch(/katab-sync-\d{4}-\d{2}-\d{2}\.json/)

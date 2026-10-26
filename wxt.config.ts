@@ -1,5 +1,5 @@
-import { defineConfig } from 'wxt';
-import UnoCSS from 'unocss/vite';
+import UnoCSS from 'unocss/vite'
+import { defineConfig } from 'wxt'
 
 export default defineConfig({
   srcDir: 'src',
@@ -30,6 +30,7 @@ export default defineConfig({
     },
     permissions: [
       'storage',
+      'alarms',
       'tabs',
       'tabGroups',
       'sessions',
@@ -49,4 +50,4 @@ export default defineConfig({
   vite: () => ({
     plugins: [UnoCSS({ configFile: './src/styles/uno.config.ts' })],
   }),
-});
+})

@@ -645,7 +645,7 @@ const OptionsApp: Component = () => {
 
               <SettingCard
                 title="WebDAV"
-                description="Sync boards, collections, notes, and settings to your own WebDAV server. Credentials are stored locally on this device only."
+                description="Sync boards, collections, notes, and settings to your own WebDAV server. Credentials are stored locally on this device only. After you stop editing, changes upload within a few seconds, and KaTab downloads about every 5 minutes plus once when the browser starts. Upload and Download stay available for a manual sync."
               >
                 <label style="display: flex; align-items: center; gap: 10px; font-size: 13px;">
                   <input

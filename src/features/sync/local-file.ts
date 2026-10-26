@@ -20,7 +20,7 @@ export function parseImportSnapshot(raw: string, deviceId: string): SyncSnapshot
     return parseSnapshot(raw)
   } catch {
     const data = JSON.parse(raw) as LegacyBackup
-    if (data.schemaVersion !== undefined && data.schemaVersion !== 1) {
+    if (data.schemaVersion !== undefined && data.schemaVersion !== 1 && data.schemaVersion !== 2) {
       throw new Error('Unsupported snapshot schema version')
     }
     const hasData =
@@ -32,13 +32,16 @@ export function parseImportSnapshot(raw: string, deviceId: string): SyncSnapshot
       throw new Error('Invalid backup file: missing data')
     }
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      revision: 0,
       exportedAt: data.exportedAt ?? Date.now(),
       deviceId: data.deviceId ?? deviceId,
       boards: data.boards ?? [],
       collections: data.collections ?? [],
       notes: data.notes ?? [],
       settings: { ...DEFAULT_SETTINGS, ...data.settings },
+      settingsUpdatedAt: 0,
+      tombstones: [],
     }
   }
 }
@@ -46,19 +49,26 @@ export function parseImportSnapshot(raw: string, deviceId: string): SyncSnapshot
 export function stampSnapshotForImport(snapshot: SyncSnapshot, deviceId: string): SyncSnapshot {
   const now = Date.now()
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    revision: 0,
     exportedAt: now,
     deviceId,
     boards: snapshot.boards.map((b) => ({ ...b, updatedAt: now })),
     collections: snapshot.collections.map((c) => ({ ...c, updatedAt: now })),
     notes: snapshot.notes.map((n) => ({ ...n, updatedAt: now })),
     settings: { ...DEFAULT_SETTINGS, ...snapshot.settings },
+    settingsUpdatedAt: now,
+    tombstones: snapshot.tombstones ?? [],
   }
 }
 
 export async function exportSnapshotJson(): Promise<{ json: string; filename: string }> {
   const meta = await ensureSyncMeta()
-  const snapshot = await buildSnapshot(meta.deviceId)
+  const snapshot = await buildSnapshot(meta.deviceId, {
+    revision: meta.lastRemoteRevision,
+    tombstones: meta.tombstones,
+    settingsUpdatedAt: meta.settingsUpdatedAt,
+  })
   const json = JSON.stringify(snapshot, null, 2)
   const date = new Date().toISOString().slice(0, 10)
   return { json, filename: `katab-sync-${date}.json` }
@@ -83,6 +93,11 @@ export async function importSnapshotJson(raw: string): Promise<ImportSnapshotRes
       lastRemoteExportedAt: meta.lastRemoteExportedAt,
       lastLocalChangeAt: now,
       pendingConflicts: [],
+      dirty: true,
+      lastRemoteEtag: null,
+      lastRemoteRevision: 0,
+      settingsUpdatedAt: snapshot.settingsUpdatedAt,
+      tombstones: snapshot.tombstones,
     })
 
     chrome.runtime.sendMessage({ type: MessageType.SYNC_DATA_APPLIED }).catch(() => {})

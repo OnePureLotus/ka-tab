@@ -28,7 +28,7 @@ test.describe('Settings – Sync file export and import', () => {
     const content = fs.readFileSync(tempPath, 'utf-8')
     const backup = JSON.parse(content)
 
-    expect(backup).toHaveProperty('schemaVersion', 1)
+    expect(backup).toHaveProperty('schemaVersion', 2)
     expect(backup).toHaveProperty('collections')
     expect(backup).toHaveProperty('settings')
     expect(Array.isArray(backup.collections)).toBeTruthy()
@@ -65,7 +65,8 @@ test.describe('Settings – Sync file export and import', () => {
     const content = fs.readFileSync(tempPath, 'utf-8')
     const backup = JSON.parse(content)
 
-    expect(backup.schemaVersion).toBe(1)
+    expect(backup.schemaVersion).toBe(2)
+    expect(Array.isArray(backup.tombstones)).toBeTruthy()
     expect(backup.collections).toBeDefined()
     expect(backup.settings).toBeDefined()
 
