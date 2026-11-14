@@ -106,7 +106,10 @@ function subscribeFaviconCacheStorage(): () => void {
     }
     const indexBare = wxtKeyToChromeLocalKey(STORAGE_KEYS.FAVICON_CACHE_INDEX)
     if (changes[STORAGE_KEYS.FAVICON_CACHE_INDEX] || changes[indexBare]) {
-      scheduleReloadFromStorage()
+      const entryKeys = Object.keys(changes).filter(
+        (k) => k.includes('favicon-cache') && !k.endsWith(':index'),
+      )
+      if (entryKeys.length === 0) scheduleReloadFromStorage()
     }
   }
   chrome.storage.onChanged.addListener(handler)

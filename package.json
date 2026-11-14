@@ -1,6 +1,6 @@
 {
   "name": "ka-tab",
-  "version": "0.0.10",
+  "version": "0.0.16",
   "description": "KaTab — Kanban-style new tab page for Chrome",
   "private": true,
   "type": "module",

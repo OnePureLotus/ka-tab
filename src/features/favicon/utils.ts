@@ -1,4 +1,5 @@
 import { getFaviconUrl } from '@/features/collections/utils'
+import { FAVICON_FETCH_TIMEOUT_MS } from '@/shared/constants'
 import { hashContentSync } from '@/shared/utils/hash'
 import { normalizeSiteUrl } from '@/shared/utils/site-url'
 
@@ -54,7 +55,10 @@ export function getFaviconFetchCandidates(siteUrl: string): string[] {
 export async function fetchFaviconAsDataUrl(candidates: string[]): Promise<string | null> {
   for (const url of candidates) {
     try {
-      const response = await fetch(url, { redirect: 'follow' })
+      const response = await fetch(url, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(FAVICON_FETCH_TIMEOUT_MS),
+      })
       if (!response.ok) continue
       const blob = await response.blob()
       if (blob.size === 0 || blob.size > MAX_FAVICON_BYTES) continue

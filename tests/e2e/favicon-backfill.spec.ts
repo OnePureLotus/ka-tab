@@ -64,4 +64,13 @@ test.describe('Favicon backfill', () => {
 
     expect(extContext.serviceWorkers().length).toBeGreaterThan(0)
   })
+
+  test('E2E-FC-02: manual fetch all button is visible on top bar', async ({
+    newtabPage: page,
+  }) => {
+    await waitForBoardReady(page)
+    const btn = page.getByRole('button', { name: 'Get Icons' })
+    await expect(btn).toBeVisible()
+    await expect(btn).toBeEnabled()
+  })
 })

@@ -69,11 +69,31 @@ const App: Component = () => {
       void loadCollections({ replace: true })
       void loadNotes()
     }
-    const onExtensionMessage = (message: { type?: string }) => {
+    const onExtensionMessage = (message: { type?: string; payload?: unknown }) => {
       if (message?.type === MessageType.SYNC_DATA_APPLIED) onSyncApplied(message)
       if (message?.type === MessageType.FAVICON_CACHE_CLEARED) {
         resetFaviconCacheStore()
         showToast('图标缓存已清空，正在重新获取…', { type: 'info' })
+      }
+      if (message?.type === MessageType.FAVICON_BACKFILL_MANUAL_DONE) {
+        const p = message.payload as {
+          ok?: boolean
+          error?: string
+          cacheCount?: number
+          pendingCount?: number
+          steps?: number
+        }
+        if (p?.ok) {
+          showToast(
+            `全部获取结束：缓存 ${p.cacheCount ?? '?'} 个，仍待处理 ${p.pendingCount ?? '?'}`,
+            { type: 'success' },
+          )
+        } else {
+          showToast('获取站点图标异常结束', {
+            type: 'error',
+            body: String(p?.error ?? 'Unknown error'),
+          })
+        }
       }
     }
     chrome.runtime.onMessage.addListener(onExtensionMessage)

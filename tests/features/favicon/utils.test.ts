@@ -4,6 +4,7 @@ import {
   isWeakFaviconUrl,
   resolveStoredFaviconUrl,
 } from '@/features/favicon/utils'
+import { FAVICON_FETCH_CONCURRENCY, FAVICON_FETCH_TIMEOUT_MS } from '@/shared/constants'
 import { normalizeSiteUrl } from '@/shared/utils/site-url'
 
 describe('favicon utils', () => {
@@ -29,6 +30,14 @@ describe('favicon utils', () => {
     expect(resolveStoredFaviconUrl('https://cdn.example.com/i.png', 'https://github.com')).toBe(
       'https://cdn.example.com/i.png',
     )
+  })
+
+  it('uses 2s per-candidate fetch timeout constant', () => {
+    expect(FAVICON_FETCH_TIMEOUT_MS).toBe(2_000)
+  })
+
+  it('uses concurrency 10 for parallel favicon waves', () => {
+    expect(FAVICON_FETCH_CONCURRENCY).toBe(10)
   })
 
   it('getFaviconFetchCandidates includes google and duckduckgo', () => {

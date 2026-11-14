@@ -30,6 +30,7 @@ const TopBar: Component<TopBarProps> = (props) => {
   const [query, setQuery] = createSignal('')
   const [dropdownOpen, setDropdownOpen] = createSignal(false)
   const [syncBusy, setSyncBusy] = createSignal(false)
+  const [faviconBusy, setFaviconBusy] = createSignal(false)
   const [isDark, setIsDark] = createSignal(
     window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
@@ -116,6 +117,33 @@ const TopBar: Component<TopBarProps> = (props) => {
     collection: '📚',
     site: '🔗',
     note: '📝',
+  }
+
+  type FaviconManualStartResult = {
+    ok: boolean
+    started?: boolean
+    error?: string
+  }
+
+  async function runFaviconFetchAll() {
+    if (faviconBusy() || syncBusy()) return
+    setFaviconBusy(true)
+    try {
+      const res = await sendCommand<undefined, FaviconManualStartResult>({
+        type: MessageType.FAVICON_BACKFILL_MANUAL_ALL,
+      })
+      if (res.ok && res.started) {
+        showToast('已开始获取站点图标，成功后会逐个提示', { type: 'info' })
+      } else if (res.error === 'FAVICON_MANUAL_ALREADY_RUNNING') {
+        showToast('正在后台获取图标，请稍候', { type: 'info' })
+      } else {
+        showToast('无法启动图标获取', { type: 'error', body: String(res.error ?? 'Unknown error') })
+      }
+    } catch (err) {
+      showToast('无法启动图标获取', { type: 'error', body: String(err) })
+    } finally {
+      setFaviconBusy(false)
+    }
   }
 
   async function runManualSync(direction: 'SYNC_PUSH' | 'SYNC_PULL') {
@@ -222,19 +250,28 @@ const TopBar: Component<TopBarProps> = (props) => {
       <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
         <button
           type="button"
+          title="Fetch all site favicons now (no rate limit)"
+          disabled={faviconBusy() || syncBusy()}
+          onClick={() => void runFaviconFetchAll()}
+          style={`${actionBtnStyle} opacity: ${faviconBusy() || syncBusy() ? 0.6 : 1};`}
+        >
+          {faviconBusy() ? 'Getting…' : 'Get Icons'}
+        </button>
+        <button
+          type="button"
           title="Upload local data to WebDAV"
-          disabled={syncBusy()}
+          disabled={syncBusy() || faviconBusy()}
           onClick={() => runManualSync('SYNC_PUSH')}
-          style={`${actionBtnStyle} opacity: ${syncBusy() ? 0.6 : 1};`}
+          style={`${actionBtnStyle} opacity: ${syncBusy() || faviconBusy() ? 0.6 : 1};`}
         >
           Upload
         </button>
         <button
           type="button"
           title="Download data from WebDAV"
-          disabled={syncBusy()}
+          disabled={syncBusy() || faviconBusy()}
           onClick={() => runManualSync('SYNC_PULL')}
-          style={`${actionBtnStyle} opacity: ${syncBusy() ? 0.6 : 1};`}
+          style={`${actionBtnStyle} opacity: ${syncBusy() || faviconBusy() ? 0.6 : 1};`}
         >
           Download
         </button>

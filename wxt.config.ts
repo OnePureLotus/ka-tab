@@ -9,7 +9,7 @@ export default defineConfig({
     name: 'KaTab',
     short_name: 'KaTab',
     description: 'Kanban-style new tab page — Collections, Notes, Tab Tray',
-    version: '0.0.10',
+    version: '0.0.16',
     minimum_chrome_version: '116',
     icons: {
       16: 'icons/icon-16.png',
@@ -20,7 +20,7 @@ export default defineConfig({
     },
     // Toolbar icon — required for `contexts: ['action']` context menu
     action: {
-      default_title: 'KaTab 0.0.10',
+      default_title: 'KaTab 0.0.16',
       default_icon: {
         16: 'icons/icon-16.png',
         32: 'icons/icon-32.png',

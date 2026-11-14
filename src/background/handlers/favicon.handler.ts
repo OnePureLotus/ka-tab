@@ -1,13 +1,15 @@
 import {
+  isFaviconManualBackfillRunning,
   kickFaviconBackfill,
   runFaviconBackfillBatch,
+  runFaviconBackfillManualAll,
 } from '@/background/favicon-backfill.service'
 import {
   clearFaviconCache,
   getFaviconCacheStats,
   listSitesNeedingFaviconFromStorage,
 } from '@/features/favicon/cache'
-import type { MessageType } from '@/shared/messaging/types'
+import { MessageType } from '@/shared/messaging/types'
 
 import { EXTENSION_VERSION } from '@/shared/constants'
 import { katabLog } from '@/shared/debug/file-logger'
@@ -20,6 +22,34 @@ export function registerFaviconHandlers(
   sendResponse: (response?: unknown) => void,
 ): boolean {
   switch (message.type) {
+    case 'FAVICON_BACKFILL_MANUAL_ALL': {
+      if (isFaviconManualBackfillRunning()) {
+        sendResponse({ ok: false, error: 'FAVICON_MANUAL_ALREADY_RUNNING' })
+        return true
+      }
+      sendResponse({ ok: true, started: true, buildId: FAVICON_BUILD_ID })
+      void runFaviconBackfillManualAll()
+        .then((result) => {
+          katabLog.info('KaTab Favicon', 'manual backfill notifying UI', result)
+          void chrome.runtime
+            .sendMessage({
+              type: MessageType.FAVICON_BACKFILL_MANUAL_DONE,
+              payload: { ok: true, buildId: FAVICON_BUILD_ID, ...result },
+            })
+            .catch(() => undefined)
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err)
+          katabLog.error('KaTab Favicon', 'manual backfill failed', err)
+          void chrome.runtime
+            .sendMessage({
+              type: MessageType.FAVICON_BACKFILL_MANUAL_DONE,
+              payload: { ok: false, buildId: FAVICON_BUILD_ID, error: message },
+            })
+            .catch(() => undefined)
+        })
+      return false
+    }
     case 'FAVICON_BACKFILL_KICK': {
       kickFaviconBackfill()
       void Promise.all([getFaviconCacheStats(), listSitesNeedingFaviconFromStorage()])
