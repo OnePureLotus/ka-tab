@@ -1,4 +1,8 @@
+import { initFaviconBackfill } from '@/background/favicon-backfill.service'
 import { registerCollectionHandlers } from '@/background/handlers/collection.handler'
+import { registerDebugLogHandlers } from '@/background/handlers/debug-log.handler'
+import { FAVICON_BUILD_ID, registerFaviconHandlers } from '@/background/handlers/favicon.handler'
+import { initKatabFileLogger, katabLog } from '@/shared/debug/file-logger'
 import { registerNoteHandlers } from '@/background/handlers/note.handler'
 import { registerSyncHandlers } from '@/background/handlers/sync.handler'
 import { registerTabHandlers } from '@/background/handlers/tab.handler'
@@ -14,12 +18,19 @@ const CONTEXT_MENU_SAVE_NOTE = 'katab-save-selection'
 const CONTEXT_MENU_OPEN_NEWTAB = 'katab-open-newtab'
 
 export default defineBackground(() => {
+  initKatabFileLogger()
+  katabLog.info('KaTab SW', 'background boot', FAVICON_BUILD_ID, {
+    id: chrome.runtime.id,
+    version: chrome.runtime.getManifest().version,
+  })
   initTabSnapshot()
   initPortManager()
+  initFaviconBackfill()
 
   void migrateFromChromeSync().then(() => initSyncEngine())
 
-  chrome.runtime.onInstalled.addListener(() => {
+  chrome.runtime.onInstalled.addListener((details) => {
+    katabLog.info('KaTab SW', 'onInstalled', details.reason, details.previousVersion ?? '')
     chrome.contextMenus.create({
       id: CONTEXT_MENU_SAVE_NOTE,
       title: 'Save to KaTab',
@@ -48,10 +59,12 @@ export default defineBackground(() => {
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const handled =
+      registerDebugLogHandlers(message, sender, sendResponse) ||
       registerCollectionHandlers(message, sender, sendResponse) ||
       registerTabHandlers(message, sender, sendResponse) ||
       registerNoteHandlers(message, sender, sendResponse) ||
-      registerSyncHandlers(message, sender, sendResponse)
+      registerSyncHandlers(message, sender, sendResponse) ||
+      registerFaviconHandlers(message, sender, sendResponse)
 
     return handled
   })

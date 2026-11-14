@@ -19,6 +19,8 @@ export const STORAGE_KEYS = {
   SYNC_META: 'local:katab:sync_meta',
   WEBDAV_CONFIG: 'local:katab:webdav_config',
   MIGRATION_BOARDS_V1: 'local:katab:migration_v1_boards',
+  FAVICON_CACHE_INDEX: 'local:katab:favicon-cache:index',
+  FAVICON_CACHE: (id: string) => `local:katab:favicon-cache:${id}` as const,
 } as const
 
 export { storage }

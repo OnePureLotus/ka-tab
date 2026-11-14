@@ -37,6 +37,7 @@ function normalizeStorageKey(key: string): string {
 
 function isUserDataKey(key: string): boolean {
   if (INTERNAL_KEYS.has(key)) return false
+  if (key.startsWith('katab:favicon-cache')) return false
   return key.startsWith('katab:')
 }
 

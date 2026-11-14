@@ -1,6 +1,10 @@
+import { faviconCacheStore } from '@/features/favicon/store'
+import { resolveStoredFaviconUrl } from '@/features/favicon/utils'
+import { getFaviconUrl } from '@/features/collections/utils'
 import type { Component } from 'solid-js'
-import { createSignal, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, on, Show } from 'solid-js'
 import { getLetterAvatar } from '@/shared/utils/letterAvatar'
+import { normalizeSiteUrl } from '@/shared/utils/site-url'
 
 interface SiteFaviconProps {
   /** Stored favicon URL from the Site record */
@@ -12,15 +16,6 @@ interface SiteFaviconProps {
   size?: number
 }
 
-function deriveFaviconUrl(favicon: string, url: string): string {
-  if (favicon) return favicon
-  try {
-    const domain = new URL(url).hostname
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
-  } catch {
-    return ''
-  }
-}
 
 /**
  * Displays the site's favicon with a letter-avatar fallback.
@@ -30,7 +25,23 @@ function deriveFaviconUrl(favicon: string, url: string): string {
 const SiteFavicon: Component<SiteFaviconProps> = (props) => {
   const [imgFailed, setImgFailed] = createSignal(false)
 
-  const faviconSrc = () => deriveFaviconUrl(props.favicon, props.url)
+  const faviconSrc = createMemo(() => {
+    void faviconCacheStore.revision
+    void faviconCacheStore.loaded
+    const key = normalizeSiteUrl(props.url)
+    const cached = faviconCacheStore.byUrl[key]
+    if (cached) return cached
+    return resolveStoredFaviconUrl(props.favicon, props.url)
+  })
+  createEffect(
+    on(
+      faviconSrc,
+      () => {
+        setImgFailed(false)
+      },
+      { defer: true },
+    ),
+  )
   const size = () => props.size ?? 18
   const avatar = () => getLetterAvatar(props.title || props.url)
   const borderRadius = () => Math.round(size() * 0.28)

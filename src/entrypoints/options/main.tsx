@@ -83,6 +83,8 @@ const OptionsApp: Component = () => {
   const [syncStatus, setSyncStatus] = createSignal<SyncRuntimeStatus | null>(null)
   const [syncMessage, setSyncMessage] = createSignal('')
   const [syncBusy, setSyncBusy] = createSignal(false)
+  const [faviconClearMessage, setFaviconClearMessage] = createSignal('')
+  const [faviconClearBusy, setFaviconClearBusy] = createSignal(false)
 
   type SyncCommandResult = { ok: boolean; data?: unknown; error?: string }
 
@@ -276,6 +278,32 @@ const OptionsApp: Component = () => {
     input.click()
   }
 
+  async function clearFaviconCacheAndKick() {
+    const confirmed = window.confirm(
+      '将删除所有已缓存的网站图标（约百条 data URL），收藏数据不会变。清空后会自动开始重新抓取。继续？',
+    )
+    if (!confirmed) return
+    setFaviconClearBusy(true)
+    setFaviconClearMessage('')
+    try {
+      const res = await sendCommand<
+        undefined,
+        { ok: boolean; removedKeys?: number; error?: string }
+      >({ type: MessageType.FAVICON_CACHE_CLEAR })
+      if (!res.ok) {
+        setFaviconClearMessage(`清空失败：${res.error ?? 'unknown'}`)
+        return
+      }
+      setFaviconClearMessage(
+        `已删除 ${res.removedKeys ?? 0} 个存储键，后台已开始重新获取。请打开 KaTab 新标签页查看进度。`,
+      )
+    } catch (err) {
+      setFaviconClearMessage(`清空失败：${err}`)
+    } finally {
+      setFaviconClearBusy(false)
+    }
+  }
+
   const navItems: Array<{ id: NavSection; label: string; prefix: string }> = [
     { id: 'appearance', label: 'Appearance', prefix: 'Aa' },
     { id: 'data', label: 'Data & Backup', prefix: 'DB' },
@@ -306,6 +334,11 @@ const OptionsApp: Component = () => {
         </span>
         <span style={`font-size: 13px; color: ${T.textSecondary};`}>
           Customize your new tab workspace
+        </span>
+        <span
+          style={`margin-left: 12px; font-size: 12px; font-weight: 600; color: ${T.textMuted}; padding: 3px 8px; border: 1px solid ${T.border}; border-radius: 6px;`}
+        >
+          v{chrome.runtime.getManifest().version}
         </span>
         {/* Spacer */}
         <div style="flex: 1;" />
@@ -604,6 +637,29 @@ const OptionsApp: Component = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div style="margin-top: 20px; max-width: 560px;">
+              <SettingCard
+                title="网站图标缓存"
+                description="删除本地已抓取的 favicon（data URL），收藏里的网址和标题不变。后台按每分钟最多 10 个站点的节奏重新抓取，减轻网络压力。清空后请保持新标签页打开。"
+              >
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <button
+                    type="button"
+                    disabled={faviconClearBusy()}
+                    onClick={() => void clearFaviconCacheAndKick()}
+                    style={`height: 36px; padding: 0 16px; align-self: flex-start; border: 1px solid #dc2626; border-radius: 8px; background: ${T.surface}; color: #dc2626; cursor: pointer; font-size: 12px; font-weight: 600; opacity: ${faviconClearBusy() ? 0.6 : 1};`}
+                  >
+                    清空图标缓存并重新获取
+                  </button>
+                  <Show when={faviconClearMessage()}>
+                    <p style={`font-size: 13px; color: ${T.textSecondary}; margin: 0;`}>
+                      {faviconClearMessage()}
+                    </p>
+                  </Show>
+                </div>
+              </SettingCard>
             </div>
           </Show>
 

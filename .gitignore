@@ -1,3 +1,7 @@
+# Local debug logs (katab-log-relay)
+.logs/
+.tmp/
+
 # WXT / build output
 .wxt/
 .output/

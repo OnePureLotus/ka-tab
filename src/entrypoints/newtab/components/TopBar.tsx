@@ -149,6 +149,12 @@ const TopBar: Component<TopBarProps> = (props) => {
         <span style="font-weight: 700; font-size: 22px; color: var(--katab-color-text-primary);">
           aTab
         </span>
+        <span
+          title="Extension version"
+          style="margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--katab-color-text-secondary); padding: 2px 6px; border: 1px solid var(--katab-color-border); border-radius: 6px;"
+        >
+          v{chrome.runtime.getManifest().version}
+        </span>
       </div>
 
       {/* Search */}

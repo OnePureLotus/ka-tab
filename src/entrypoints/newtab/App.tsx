@@ -8,6 +8,7 @@ import {
 import CollectionBoard from '@/features/collections/components/CollectionBoard'
 import { collectionsStore } from '@/features/collections/store'
 import { loadCollections, useCollectionsStorageSync } from '@/features/collections/store'
+import { resetFaviconCacheStore, useFaviconCacheSync } from '@/features/favicon/store'
 import NotePanel from '@/features/notes/components/NotePanel'
 import { loadNotes } from '@/features/notes/store'
 import type { Settings } from '@/features/settings/types'
@@ -17,6 +18,7 @@ import { loadConflicts, watchConflicts } from '@/features/sync/sync.store'
 import TabTray from '@/features/tab-tray/components/TabTray'
 import { connectTabTray } from '@/features/tab-tray/tab-tray.port'
 import Toast from '@/shared/components/Toast'
+import { forwardKatabLog } from '@/shared/debug/forward-log'
 import { sendCommand } from '@/shared/messaging/client'
 import { watchSettings } from '@/shared/messaging/storage-sync'
 import { MessageType } from '@/shared/messaging/types'
@@ -41,6 +43,7 @@ const App: Component = () => {
 
   useBoardsStorageSync()
   useCollectionsStorageSync()
+  useFaviconCacheSync()
 
   onMount(async () => {
     const disconnectTabTray = connectTabTray()
@@ -66,8 +69,31 @@ const App: Component = () => {
       void loadCollections({ replace: true })
       void loadNotes()
     }
-    chrome.runtime.onMessage.addListener(onSyncApplied)
-    onCleanup(() => chrome.runtime.onMessage.removeListener(onSyncApplied))
+    const onExtensionMessage = (message: { type?: string }) => {
+      if (message?.type === MessageType.SYNC_DATA_APPLIED) onSyncApplied(message)
+      if (message?.type === MessageType.FAVICON_CACHE_CLEARED) {
+        resetFaviconCacheStore()
+        showToast('图标缓存已清空，正在重新获取…', { type: 'info' })
+      }
+    }
+    chrome.runtime.onMessage.addListener(onExtensionMessage)
+    onCleanup(() => chrome.runtime.onMessage.removeListener(onExtensionMessage))
+
+    forwardKatabLog('info', 'KaTab Newtab', 'page mounted', {
+      version: chrome.runtime.getManifest().version,
+    })
+    const kickFavicon = () => {
+      void sendCommand<{ pendingCount?: number; cacheCount?: number; buildId?: string }>({
+        type: MessageType.FAVICON_BACKFILL_KICK,
+      })
+        .then((res) => {
+          forwardKatabLog('info', 'KaTab Newtab', 'favicon kick', res ?? {})
+        })
+        .catch((err) => forwardKatabLog('error', 'KaTab Newtab', 'favicon kick failed', err))
+    }
+    kickFavicon()
+    const faviconKickTimer = setInterval(kickFavicon, 30_000)
+    onCleanup(() => clearInterval(faviconKickTimer))
   })
 
   async function handleOpenCollection(id: string) {

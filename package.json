@@ -1,6 +1,6 @@
 {
   "name": "ka-tab",
-  "version": "0.0.1",
+  "version": "0.0.10",
   "description": "KaTab — Kanban-style new tab page for Chrome",
   "private": true,
   "type": "module",
@@ -18,7 +18,9 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integration": "playwright test --project=integration",
     "test:all": "pnpm test:unit && playwright test",
-    "screenshots:readme": "pnpm build && playwright test --project=screenshots"
+    "screenshots:readme": "pnpm build && playwright test --project=screenshots",
+    "log:relay": "node scripts/katab-log-relay.mjs",
+    "log:watch": "node scripts/watch-katab-log.mjs"
   },
   "dependencies": {
     "@thisbeyond/solid-dnd": "^0.7.5",
